@@ -1,0 +1,15 @@
+{
+  "id": "5c218abb",
+  "title": "对话 5c218abb",
+  "created_at": "2026-04-16T18:19:04.758955",
+  "messages": [
+    {
+      "role": "user",
+      "content": "为什么天是蓝色的？"
+    },
+    {
+      "role": "assistant",
+      "content": "API Error: Request rejected (429) · 并发 Session 超限：当前 3 个（限制：3 个）。请等待活跃 Session 完成 (cch_session_id: 48102384-614b-4a3c-8642-7b4d12d85cee)"
+    }
+  ]
+}

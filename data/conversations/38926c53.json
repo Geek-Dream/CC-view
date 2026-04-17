@@ -1,0 +1,15 @@
+{
+  "id": "38926c53",
+  "title": "对话 38926c53",
+  "created_at": "2026-04-17T11:18:12.853524",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你会做什么？"
+    },
+    {
+      "role": "assistant",
+      "content": "done"
+    }
+  ]
+}

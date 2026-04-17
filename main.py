@@ -49,7 +49,7 @@ SKILLS_LIST = [
 
 # ==================== 对话持久化 ====================
 
-def save_conversation(conv_id, title, messages):
+def save_conversation(conv_id, title, messages, session_id=None):
     filepath = os.path.join(DATA_DIR, f"{conv_id}.json")
     data = {
         "id": conv_id,
@@ -57,6 +57,8 @@ def save_conversation(conv_id, title, messages):
         "created_at": datetime.now().isoformat(),
         "messages": messages,
     }
+    if session_id is not None:
+        data["session_id"] = session_id
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -127,14 +129,16 @@ class GitWorker(QObject):
 
 class ClaudeWorker(QObject):
     """后台执行 claude 命令，流式输出。"""
-    chunk_ready = pyqtSignal(str)  # 流式文本片段
-    result_ready = pyqtSignal(str)  # 最终结果
+    chunk_ready = pyqtSignal(str)       # 流式文本片段
+    result_ready = pyqtSignal(str)      # 最终结果
+    session_ready = pyqtSignal(str)     # session_id（新对话首次创建）
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, prompt, model):
+    def __init__(self, prompt, model, session_id=None):
         super().__init__()
         self.prompt = prompt
         self.model = model
+        self.session_id = session_id  # 已有 session 则传入 --resume 续接
 
     @pyqtSlot()
     def run(self):
@@ -146,6 +150,13 @@ class ClaudeWorker(QObject):
                 "--include-partial-messages",
                 "--verbose",
             ]
+            # 如果有 session_id，续接该会话
+            if self.session_id:
+                cmd.extend(["--resume", self.session_id])
+                print(f"[ClaudeWorker] 续接 session: {self.session_id}")
+            else:
+                print(f"[ClaudeWorker] 新对话")
+
             print(f"\n{'='*60}")
             print(f"[USER] {self.prompt}")
             print(f"{'='*60}")
@@ -180,9 +191,12 @@ class ClaudeWorker(QObject):
                     sub = obj.get("subtype", "")
                     if sub == "init":
                         session_id = obj.get("session_id", "")
-                        model = obj.get("model", "")
+                        model_info = obj.get("model", "")
                         version = obj.get("claude_code_version", "")
-                        print(f"[SYSTEM] session={session_id} model={model} version={version}")
+                        print(f"[SYSTEM] session={session_id} model={model_info} version={version}")
+                        # 新对话：回传 session_id 给主线程保存
+                        if session_id:
+                            self.session_ready.emit(session_id)
                     elif sub == "status":
                         print(f"[SYSTEM] status={obj.get('status', '')}")
                     elif sub == "api_retry":
@@ -272,10 +286,6 @@ class ClaudeWorker(QObject):
             print(f"[ClaudeWorker] 错误: {e}")
             self.error_occurred.emit(str(e))
 
-        except Exception as e:
-            print(f"[ClaudeWorker] 错误: {e}")
-            self.error_occurred.emit(str(e))
-
 
 # ==================== 消息气泡 ====================
 
@@ -358,6 +368,20 @@ class MessageRow(QWidget):
         dots = "." * self._thinking_dots
         self._content_label.setText(f"思考中{dots}")
 
+    def _type_next_char(self):
+        """打字机动画：每次显示一个字符。"""
+        if not hasattr(self, '_target_text'):
+            return
+        self._displayed_chars += 1
+        if self._displayed_chars >= len(self._target_text):
+            # 动画完成
+            self._content_label.setText(self._target_text)
+            if hasattr(self, '_type_timer'):
+                self._type_timer.stop()
+                del self._type_timer
+            return
+        self._content_label.setText(self._target_text[:self._displayed_chars])
+
     def update_text(self, text):
         """更新消息文字（用于流式输出）。"""
         if not hasattr(self, '_content_label'):
@@ -367,7 +391,29 @@ class MessageRow(QWidget):
             self._is_thinking = False
             if hasattr(self, '_thinking_timer'):
                 self._thinking_timer.stop()
-        self._content_label.setText(text)
+            # 开始打字机动画，从第一个字开始
+            self._target_text = text
+            self._displayed_chars = 0
+            if hasattr(self, '_type_timer'):
+                self._type_timer.stop()
+            self._type_timer = QTimer()
+            self._type_timer.timeout.connect(self._type_next_char)
+            self._type_timer.start(20)  # 每字 20ms（约 50 字/秒）
+            return
+        # 非思考状态，直接显示或继续动画
+        current = self._content_label.text()
+        if text == current:
+            return
+        if len(text) <= len(current):
+            self._content_label.setText(text)
+            return
+        # 新的更长文本，继续动画
+        self._target_text = text
+        if not hasattr(self, '_type_timer') or not self._type_timer.isActive():
+            self._displayed_chars = len(current)
+            self._type_timer = QTimer()
+            self._type_timer.timeout.connect(self._type_next_char)
+            self._type_timer.start(20)
 
 
 class PopupList(QDialog):
@@ -645,6 +691,7 @@ class MainWindow(QMainWindow):
         self.claude_client = ClaudeClient()
         self.current_conv_id = None
         self._building_response = False
+        self._pending_session_id = None  # 从 ClaudeWorker 捕获的新 session_id
 
         self._build()
         QTimer.singleShot(300, self._init_content)
@@ -817,20 +864,28 @@ class MainWindow(QMainWindow):
         # 添加 AI 占位消息
         self.center_panel.add_message("assistant", "思考中...")
 
-        # 构建对话上下文
+        # 获取当前对话的 session_id（用于续接历史对话）
+        session_id = conv.get("session_id")
+
+        # 构建对话上下文（只取最后一条用户消息，历史由 Claude session 管理）
         prompt = self.claude_client.build_prompt(messages)
         model_name = self.center_panel.model_combo.currentText()
         model = {"opus (最强)": "opus", "sonnet (推荐)": "sonnet", "haiku (最快)": "haiku"}.get(model_name, "sonnet")
 
         # 创建 Claude 工作线程
         self._claude_thread = QThread()
-        self._claude_worker = ClaudeWorker(prompt, model)
+        self._claude_worker = ClaudeWorker(prompt, model, session_id=session_id)
         self._claude_worker.moveToThread(self._claude_thread)
         self._claude_worker.chunk_ready.connect(self._on_chunk)
         self._claude_worker.result_ready.connect(self._on_claude_result)
+        self._claude_worker.session_ready.connect(self._on_session_ready)
         self._claude_worker.error_occurred.connect(self._on_claude_error)
         self._claude_thread.started.connect(self._claude_worker.run)
         self._claude_thread.start()
+
+    def _on_session_ready(self, session_id):
+        """收到 Claude 的 session_id（新对话首次创建）。"""
+        self._pending_session_id = session_id
 
     def _on_claude_result(self, result):
         """Claude 执行完成。"""
@@ -859,13 +914,15 @@ class MainWindow(QMainWindow):
         """在主线程完成回复处理。"""
         self.center_panel.update_last_message(full_text)
 
-        # 保存 AI 回复
+        # 保存 AI 回复 + session_id
         if self.current_conv_id:
             conv = load_conversation(self.current_conv_id)
             if conv:
                 messages = conv.get("messages", [])
                 messages.append({"role": "assistant", "content": full_text})
-                save_conversation(self.current_conv_id, conv.get("title", "新对话"), messages)
+                session_id = self._pending_session_id or conv.get("session_id")
+                save_conversation(self.current_conv_id, conv.get("title", "新对话"), messages, session_id)
+                self._pending_session_id = None  # 清空 pending
                 self._refresh_sidebar_preview()
 
         self.center_panel.send_btn.setEnabled(True)
@@ -903,8 +960,9 @@ class MainWindow(QMainWindow):
 
         conv_id = str(uuid.uuid4())[:8]
         title = f"对话 {conv_id}"
-        save_conversation(conv_id, title, [])
+        save_conversation(conv_id, title, [], session_id=None)
         self.current_conv_id = conv_id
+        self._pending_session_id = None
         self.center_panel.clear_messages()
 
         if not silent:

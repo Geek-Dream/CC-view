@@ -16,16 +16,13 @@ class ClaudeClient:
         self._proc = None
 
     def build_prompt(self, messages):
-        """将消息列表拼接为纯文本。"""
+        """只取最后一条用户消息，对话历史由 Claude session 管理。"""
         if not messages:
             return ""
-        lines = []
-        for msg in messages:
-            role = msg.get("role", "")
-            text = msg.get("content", "")
-            if role == "user":
-                lines.append(text)
-        return lines[-1] if lines else ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                return msg.get("content", "")
+        return ""
 
     def send_message(self, prompt, model_alias="sonnet (推荐)", on_chunk=None, on_done=None, on_error=None):
         """发送消息到 claude CLI。"""

@@ -9,12 +9,13 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QTextEdit, QComboBox,
+    QPushButton, QLabel, QTextEdit, QComboBox, QInputDialog,
     QListWidget, QListWidgetItem, QScrollArea, QFrame,
-    QDialog, QFileDialog, QMessageBox, QSizePolicy,
+    QDialog, QFileDialog, QMessageBox, QSizePolicy, QMenu,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QRect, QPoint
+from PyQt6.QtGui import QFont, QColor, QIcon
+from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from claude_client import ClaudeClient
 
@@ -129,9 +130,11 @@ class GitWorker(QObject):
 
 class ClaudeWorker(QObject):
     """后台执行 claude 命令，流式输出。"""
-    chunk_ready = pyqtSignal(str)       # 流式文本片段
-    result_ready = pyqtSignal(str)      # 最终结果
-    session_ready = pyqtSignal(str)     # session_id（新对话首次创建）
+    chunk_ready = pyqtSignal(str)           # 流式文本片段
+    result_ready = pyqtSignal(str)          # 最终结果
+    session_ready = pyqtSignal(str)         # session_id（新对话首次创建）
+    thinking_started = pyqtSignal()         # 开始思考
+    thinking_ready = pyqtSignal(str, int)   # 思考完成（文本, 用时ms）
     error_occurred = pyqtSignal(str)
 
     def __init__(self, prompt, model, session_id=None):
@@ -169,10 +172,13 @@ class ClaudeWorker(QObject):
 
             # 用 TextIOWrapper 处理行缓冲
             import io
+            import time
             stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", line_buffering=True)
 
-            full_text = ""      # 累积完整文本
-            thinking_text = ""  # 累积思考内容
+            full_text = ""          # 累积正式回复文本
+            thinking_text = ""      # 累积思考内容
+            thinking_start_time = 0 # 思考开始时间戳
+            thinking_emitted = False # 防止同一消息重复触发思考信号
 
             for line in stdout:
                 decoded = line.strip()
@@ -214,11 +220,17 @@ class ClaudeWorker(QObject):
                     if event_type == "message_start":
                         msg_id = event.get("message", {}).get("id", "")
                         print(f"[EVENT] message_start id={msg_id[:16]}...")
+                        thinking_emitted = False
 
                     elif event_type == "content_block_start":
                         block = event.get("content_block", {})
                         block_type = block.get("type", "")
                         print(f"[EVENT] content_block_start index={event.get('index', '')} type={block_type}")
+
+                        if block_type == "thinking":
+                            thinking_start_time = time.time()
+                            thinking_text = ""
+                            self.thinking_started.emit()
 
                     elif event_type == "content_block_delta":
                         delta = event.get("delta", {})
@@ -231,12 +243,18 @@ class ClaudeWorker(QObject):
                             thinking_text += delta.get("thinking", "")
 
                     elif event_type == "content_block_stop":
-                        index = event.get("index", "")
-                        # 如果有思考内容，打印出来
-                        if thinking_text:
+                        # 思考块结束：计算用时，回传思考内容
+                        # 加防重标志，避免 text block 的 stop 误触发
+                        if thinking_text and thinking_start_time > 0 and not thinking_emitted:
+                            duration_ms = int((time.time() - thinking_start_time) * 1000)
                             preview = thinking_text[:100].replace("\n", " ")
-                            print(f"[THINKING] {preview}...")
+                            print(f"[THINKING] {preview}... ({duration_ms}ms)")
+                            self.thinking_ready.emit(thinking_text, duration_ms)
+                            thinking_emitted = True
                             thinking_text = ""
+                            thinking_start_time = 0
+                            # 思考结束后，正式回复从头累积
+                            full_text = ""
 
                     elif event_type == "message_delta":
                         stop = event.get("delta", {}).get("stop_reason", "")
@@ -285,6 +303,67 @@ class ClaudeWorker(QObject):
         except Exception as e:
             print(f"[ClaudeWorker] 错误: {e}")
             self.error_occurred.emit(str(e))
+
+
+class TitleWorker(QThread):
+    """后台生成对话标题，不加入 session，单次请求。"""
+    title_ready = pyqtSignal(str)  # 生成完成（可能为空字符串表示失败）
+
+    def __init__(self, user_message, ai_reply):
+        super().__init__()
+        self.user_message = user_message
+        self.ai_reply = ai_reply
+        self._timeout = 30  # 超时阈值（秒）
+
+    def run(self):
+        try:
+            # 构建极简 prompt
+            prompt = (
+                f"User said: {self.user_message[:200]}\n"
+                f"AI replied (first 500 chars): {self.ai_reply[:500]}\n"
+                f"Reply with ONLY a short Chinese title (max 12 chars) for this conversation. "
+                f"No quotes, no explanation, just the title."
+            )
+            cmd = [
+                "claude", "-p", prompt,
+                "--model", "haiku",
+                "--output-format", "stream-json",
+            ]
+            print(f"[TitleWorker] 启动，命令: {' '.join(cmd[:4])}...")
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            full_text = ""
+
+            import io
+            import time
+            start = time.time()
+            stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", line_buffering=True)
+
+            for line in stdout:
+                if time.time() - start > self._timeout:
+                    print(f"[TitleWorker] 超时（{self._timeout}s），终止")
+                    proc.kill()
+                    return
+                decoded = line.strip()
+                if not decoded:
+                    continue
+                try:
+                    obj = json.loads(decoded)
+                    msg_type = obj.get("type", "")
+                    if msg_type == "content_block_delta":
+                        delta = obj.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            full_text += delta.get("text", "")
+                except json.JSONDecodeError:
+                    continue
+
+            proc.wait(timeout=5)
+            title = full_text.strip().strip('"').strip("'").strip()
+            # 去掉 markdown 符号
+            title = title.lstrip("#*`- ").strip()
+            if title and len(title) <= 30:
+                self.title_ready.emit(title)
+        except Exception:
+            pass  # 静默失败，调用方会降级为规则生成
 
 
 # ==================== 消息气泡 ====================
@@ -416,6 +495,240 @@ class MessageRow(QWidget):
             self._type_timer.start(20)
 
 
+class ThinkingBlock(QFrame):
+    """可折叠的思考内容块。"""
+
+    def __init__(self, text, duration_ms, parent=None):
+        super().__init__(parent)
+        self.setObjectName("thinkingBlock")
+        self._expanded = False
+        self._full_text = text
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 标题栏（可点击）
+        header = QFrame()
+        header.setObjectName("thinkingHeader")
+        header.setCursor(Qt.CursorShape.PointingHandCursor)
+        h_layout = QHBoxLayout(header)
+        h_layout.setContentsMargins(8, 6, 8, 6)
+        h_layout.setSpacing(6)
+
+        icon_label = QLabel("[思考]")
+        icon_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #6B7280;")
+        h_layout.addWidget(icon_label)
+
+        title_label = QLabel(f"深度思考已完成")
+        title_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #6B7280;")
+        h_layout.addWidget(title_label)
+
+        duration_label = QLabel(f"（用时 {self._format_duration(duration_ms)}）")
+        duration_label.setStyleSheet("font-size: 12px; color: #9CA3AF;")
+        h_layout.addWidget(duration_label)
+
+        h_layout.addStretch()
+
+        self._arrow_label = QLabel("▶")
+        self._arrow_label.setStyleSheet("font-size: 10px; color: #9CA3AF;")
+        h_layout.addWidget(self._arrow_label)
+
+        layout.addWidget(header)
+
+        # 内容区（默认折叠）
+        self._content_frame = QFrame()
+        self._content_frame.setObjectName("thinkingContent")
+        c_layout = QVBoxLayout(self._content_frame)
+        c_layout.setContentsMargins(10, 0, 10, 8)
+        c_layout.setSpacing(0)
+
+        self._content_label = QLabel(text)
+        self._content_label.setWordWrap(True)
+        self._content_label.setStyleSheet("font-size: 12px; color: #6B7280; line-height: 1.6;")
+        self._content_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        c_layout.addWidget(self._content_label)
+
+        self._content_frame.setVisible(False)
+        layout.addWidget(self._content_frame)
+
+        # 样式
+        self.setStyleSheet("""
+            #thinkingBlock { background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin: 2px 0; }
+            #thinkingHeader { background-color: transparent; }
+            #thinkingContent { background-color: transparent; }
+        """)
+
+        # 点击切换展开/折叠
+        def toggle():
+            self._expanded = not self._expanded
+            self._content_frame.setVisible(self._expanded)
+            self._arrow_label.setText("▼" if self._expanded else "▶")
+
+        header.mousePressEvent = lambda e: toggle()
+
+    @staticmethod
+    def _format_duration(ms):
+        """格式化时间为秒。"""
+        if ms < 1000:
+            return f"{ms}毫秒"
+        return f"{ms / 1000:.0f}秒"
+
+
+class ThinkingRow(QWidget):
+    """思考行容器，包含一个 ThinkingBlock。"""
+
+    def __init__(self, text, duration_ms, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(0)
+        layout.addWidget(ThinkingBlock(text, duration_ms))
+        layout.addStretch()
+
+
+class LandingPage(QFrame):
+    """空状态引导页，无对话时显示。"""
+
+    send_clicked = pyqtSignal(str)  # 用户从着陆页发送消息
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("landingPage")
+        self.setVisible(False)
+
+        # 透明度效果
+        self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
+        self.setGraphicsEffect(self._opacity_effect)
+
+        self._fade_animation = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(16)
+
+        # 顶部友好提示
+        hint_top = QLabel("你好，我是 Claude")
+        hint_top.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_top.setStyleSheet("font-size: 26px; color: #1F2937; font-weight: bold; margin-bottom: 4px;")
+        layout.addWidget(hint_top)
+
+        hint_sub = QLabel("我可以帮你写代码、回答问题、分析文件")
+        hint_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_sub.setStyleSheet("font-size: 15px; color: #6B7280;")
+        layout.addWidget(hint_sub)
+
+        layout.addSpacing(20)
+        layout.addStretch()
+
+        # 居中容器
+        center = QWidget()
+        center_layout = QVBoxLayout(center)
+        center_layout.setSpacing(24)
+
+        # 图标区域（简单几何图形，避免版权）
+        icon_label = QLabel("✦")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setMinimumSize(80, 80)
+        icon_label.setMaximumSize(80, 80)
+        icon_label.setStyleSheet("""
+            QLabel {
+                background-color: #E0E7FF; border-radius: 40px;
+                font-size: 36px; color: #4F46E5;
+            }
+        """)
+        center_layout.addWidget(icon_label)
+
+        # 文字提示
+        hint_label = QLabel("请开始我们的对话吧")
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_label.setStyleSheet("font-size: 16px; color: #9CA3AF;")
+        center_layout.addWidget(hint_label)
+
+        # 输入区
+        input_layout = QHBoxLayout()
+        input_layout.setSpacing(8)
+
+        self._input = QTextEdit()
+        self._input.setPlaceholderText("输入消息...")
+        self._input.setMinimumHeight(44)
+        self._input.setMaximumHeight(100)
+        self._input.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #D1D5DB; border-radius: 8px; padding: 8px 12px;
+                font-size: 14px; background-color: white;
+            }
+            QTextEdit:focus { border-color: #3B82F6; }
+        """)
+        input_layout.addWidget(self._input)
+
+        self._send_btn = QPushButton("发  送")
+        self._send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3B82F6; color: white; border: none;
+                border-radius: 8px; padding: 8px 20px; font-size: 14px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2563EB; }
+        """)
+        self._send_btn.setMinimumHeight(44)
+        input_layout.addWidget(self._send_btn)
+
+        center_layout.addLayout(input_layout)
+
+        layout.addWidget(center)
+        layout.addStretch()
+
+        # 信号
+        self._send_btn.clicked.connect(self._on_send)
+        self._input.keyPressEvent = self._on_key_press
+
+    def _on_send(self):
+        text = self._input.toPlainText().strip()
+        if text:
+            self._input.clear()
+            self.send_clicked.emit(text)
+
+    def _on_key_press(self, event):
+        if event.key() == Qt.Key.Key_Return and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            self._on_send()
+            return
+        QTextEdit.keyPressEvent(self._input, event)
+
+    def get_input_text(self):
+        return self._input.toPlainText().strip()
+
+    def clear_input(self):
+        self._input.clear()
+
+    def fade_in(self, duration=500):
+        """淡入动画。"""
+        self.setVisible(True)
+        self._opacity_effect.setOpacity(0.01)
+        self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
+        self._fade_animation.setDuration(duration)
+        self._fade_animation.setStartValue(0.01)
+        self._fade_animation.setEndValue(1.0)
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade_animation.start()
+        # 保持引用防止被 GC
+        self._anim_ref = self._fade_animation
+
+    def fade_out(self, duration=300, callback=None):
+        """淡出动画。"""
+        self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
+        self._fade_animation.setDuration(duration)
+        self._fade_animation.setStartValue(1.0)
+        self._fade_animation.setEndValue(0.01)
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.InCubic)
+        if callback:
+            self._fade_animation.finished.connect(callback)
+        self._fade_animation.start()
+        self._anim_ref = self._fade_animation
+
+
 class PopupList(QDialog):
     """弹出选择列表对话框。"""
 
@@ -449,6 +762,9 @@ class PopupList(QDialog):
 
 class LeftPanel(QFrame):
     """左侧面板：新建对话 + 历史对话列表。"""
+
+    rename_requested = pyqtSignal(str)  # conv_id
+    delete_requested = pyqtSignal(str)  # conv_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -487,14 +803,35 @@ class LeftPanel(QFrame):
             QListWidget::item { padding: 8px; border-bottom: 1px solid #eee; }
             QListWidget::item:selected { background-color: #3B82F6; color: white; }
         """)
+        self.conv_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.conv_list.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self.conv_list)
+
+    def _on_context_menu(self, pos):
+        """右键菜单：重命名 / 删除。"""
+        item = self.conv_list.itemAt(pos)
+        if not item:
+            return
+        conv_id = item.data(Qt.ItemDataRole.UserRole)
+        if not conv_id:
+            return
+
+        menu = QMenu(self)
+        rename_action = menu.addAction("重命名")
+        menu.addSeparator()
+        delete_action = menu.addAction("删除")
+
+        action = menu.exec(self.conv_list.mapToGlobal(pos))
+        if action == rename_action:
+            self.rename_requested.emit(conv_id)
+        elif action == delete_action:
+            self.delete_requested.emit(conv_id)
 
     def clear_conversations(self):
         self.conv_list.clear()
 
     def add_conversation(self, title_text, preview, conv_id):
-        label = title_text + (f"  {preview[:30]}" if preview else "")
-        item = QListWidgetItem(label)
+        item = QListWidgetItem(title_text)
         item.setData(Qt.ItemDataRole.UserRole, conv_id)
         self.conv_list.insertItem(0, item)
 
@@ -528,9 +865,12 @@ class CenterPanel(QFrame):
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
+        self._top_widgets = [top_bar.itemAt(i).widget() for i in range(top_bar.count()) if top_bar.itemAt(i).widget()]
+
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet("background-color: #ddd;")
+        self._separator_line = line
         layout.addWidget(line)
 
         # 消息区
@@ -567,6 +907,8 @@ class CenterPanel(QFrame):
         toolbar.addStretch()
         layout.addLayout(toolbar)
 
+        self._toolbar_widgets = [toolbar.itemAt(i).widget() for i in range(toolbar.count()) if toolbar.itemAt(i).widget()]
+
         # 输入区
         input_layout = QHBoxLayout()
         input_layout.setSpacing(6)
@@ -598,19 +940,83 @@ class CenterPanel(QFrame):
         input_layout.addWidget(self.send_btn)
         layout.addLayout(input_layout)
 
+        self._input_widgets = [input_layout.itemAt(i).widget() for i in range(input_layout.count()) if input_layout.itemAt(i).widget()]
+
+        # 着陆页（无对话时显示，初始隐藏）
+        self.landing_page = LandingPage()
+        layout.addWidget(self.landing_page)
+
+        # 默认显示着陆页
+        self.show_landing()
+
     def clear_messages(self):
-        """清空消息区，显示欢迎消息。"""
+        """清空消息区。"""
         while self.msg_layout.count() > 1:
             item = self.msg_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        self.add_message("system", "欢迎使用 Claude Code 桌面助手！\n\n你可以直接输入问题，或使用快捷功能：\n  @ 引用文件    # 调用智能体    ! 插入提示词    $ 调用 Skills")
+
+    def show_landing(self):
+        """显示着陆页，带淡入动画。"""
+        self.landing_page.fade_in(duration=500)
+        self.msg_scroll.setVisible(False)
+        self._separator_line.setVisible(False)
+        for w in self._toolbar_widgets:
+            w.setVisible(False)
+        for w in self._input_widgets:
+            w.setVisible(False)
+
+    def hide_landing(self):
+        """隐藏着陆页，带淡出动画。"""
+        def on_finished():
+            self.landing_page.setVisible(False)
+            self.landing_page._opacity_effect.setOpacity(1.0)
+        self.landing_page.fade_out(duration=300, callback=on_finished)
+        self.msg_scroll.setVisible(True)
+        self._separator_line.setVisible(True)
+        for w in self._toolbar_widgets:
+            w.setVisible(True)
+        for w in self._input_widgets:
+            w.setVisible(True)
+
+    def _animate_widget_in(self, widget, duration=400):
+        """给新添加的 widget 加淡入+上移动画。"""
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.01)
+        widget.setGraphicsEffect(effect)
+        # 淡入
+        anim = QPropertyAnimation(effect, b"opacity")
+        anim.setDuration(duration)
+        anim.setStartValue(0.01)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.start()
+        # 动画结束后清理 effect，避免长期占用
+        anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+        # 保存引用
+        widget._anim = anim
 
     def add_message(self, role, text):
-        """添加消息到聊天区。"""
+        """添加消息到聊天区，带淡入动画。"""
         row = MessageRow(role, text)
         spring_index = self.msg_layout.count() - 1
         self.msg_layout.insertWidget(spring_index, row)
+        self._animate_widget_in(row)
+        self._scroll_to_bottom()
+        return row
+
+    def add_thinking_block(self, text, duration_ms):
+        """添加思考块到聊天区（在 AI 回复前），带淡入动画。"""
+        # 只检查紧邻最后一条消息之前的 widget（每轮对话各自一个思考块）
+        last_idx = self.msg_layout.count() - 2  # 跳过弹簧
+        if last_idx >= 0:
+            item = self.msg_layout.itemAt(last_idx)
+            if item and item.widget() and isinstance(item.widget(), ThinkingRow):
+                return  # 紧邻的最后一条已经是 ThinkingRow，跳过
+        row = ThinkingRow(text, duration_ms)
+        spring_index = self.msg_layout.count() - 1
+        self.msg_layout.insertWidget(spring_index, row)
+        self._animate_widget_in(row)
         self._scroll_to_bottom()
         return row
 
@@ -691,7 +1097,10 @@ class MainWindow(QMainWindow):
         self.claude_client = ClaudeClient()
         self.current_conv_id = None
         self._building_response = False
-        self._pending_session_id = None  # 从 ClaudeWorker 捕获的新 session_id
+        self._pending_session_id = None
+        self._is_first_send = False
+        self._session_last_active = None  # session 最后活跃时间
+        self._SESSION_TIMEOUT = 1800  # session 超时阈值（秒），30 分钟
 
         self._build()
         QTimer.singleShot(300, self._init_content)
@@ -708,6 +1117,11 @@ class MainWindow(QMainWindow):
         self.change_timer = QTimer()
         self.change_timer.timeout.connect(self._schedule_git_status)
         self.change_timer.start(8000)
+
+        # session 超时检查定时器（每 60 秒检查一次）
+        self._session_check_timer = QTimer()
+        self._session_check_timer.timeout.connect(self._check_session_timeout)
+        self._session_check_timer.start(60000)
 
     def _build(self):
         central = QWidget()
@@ -729,16 +1143,23 @@ class MainWindow(QMainWindow):
         self.center_panel.input_box.keyPressEvent = self._input_key_press
         self.left_panel.new_btn.clicked.connect(self._new_conversation)
         self.left_panel.conv_list.itemClicked.connect(self._on_select_conversation)
+        self.left_panel.rename_requested.connect(self._on_rename_requested)
+        self.left_panel.delete_requested.connect(self._on_delete_requested)
         self.center_panel.btn_ref.clicked.connect(self._insert_at)
         self.center_panel.btn_agent.clicked.connect(self._insert_hash)
         self.center_panel.btn_prompt.clicked.connect(self._insert_bang)
         self.center_panel.btn_skill.clicked.connect(self._insert_dollar)
         self.center_panel.btn_image.clicked.connect(self._upload_image)
+        # 着陆页发送信号
+        self.center_panel.landing_page.send_clicked.connect(self._on_landing_send)
 
     def _init_content(self):
         self._load_saved_conversations()
         self._schedule_git_files()
         self._schedule_git_status()
+        # 无对话时显示着陆页
+        if not self.current_conv_id:
+            self.center_panel.show_landing()
 
     def _load_saved_conversations(self):
         self.left_panel.clear_conversations()
@@ -764,7 +1185,9 @@ class MainWindow(QMainWindow):
             return
 
         self.current_conv_id = conv_id
+        self._is_first_send = False
         self.center_panel.clear_messages()
+        self.center_panel.hide_landing()
 
         for msg in conv.get("messages", []):
             role = msg.get("role", "user")
@@ -829,6 +1252,16 @@ class MainWindow(QMainWindow):
             return
         QTextEdit.keyPressEvent(self.center_panel.input_box, event)
 
+    def _on_landing_send(self, text):
+        """从着陆页发送消息：创建新对话并发送。"""
+        if self._building_response:
+            return
+        # 创建新对话
+        self._new_conversation(silent=True)
+        # 用着陆页的文本发送
+        self.center_panel.input_box.setText(text)
+        self._on_send()
+
     def _on_send(self):
         """发送消息。"""
         if self._building_response:
@@ -842,19 +1275,34 @@ class MainWindow(QMainWindow):
         if not self.current_conv_id:
             self._new_conversation(silent=True)
 
+        # 检查 session 是否超时，如果超时则清空 session_id
+        if self._session_last_active:
+            elapsed = (datetime.now() - self._session_last_active).total_seconds()
+            if elapsed > self._SESSION_TIMEOUT:
+                # session 已超时，清空 session_id，创建新 session
+                conv = load_conversation(self.current_conv_id)
+                if conv and conv.get("session_id"):
+                    conv["session_id"] = None
+                    save_conversation(self.current_conv_id, conv.get("title", ""), conv.get("messages", []), session_id=None)
+                    print(f"[Session] session 已超时（{elapsed:.0f}秒），清空 session_id")
+                self._session_last_active = None
+
         conv_id = self.current_conv_id
         conv = load_conversation(conv_id)
         if not conv:
             return
         messages = conv.get("messages", [])
 
+        # 标记是否首次发送：已有对话但 messages 为空 = 第一次发消息
+        is_first = (len(messages) == 0)
+        if is_first:
+            self._is_first_send = True
+
         # 添加并显示用户消息
         messages.append({"role": "user", "content": text})
         self.center_panel.add_message("user", text)
 
-        # 保存用户消息
-        save_conversation(conv_id, conv.get("title", "新对话"), messages)
-        self._refresh_sidebar_preview()
+        save_conversation(conv_id, conv.get("title", "新增对话"), messages)
 
         # 更新按钮
         self.center_panel.send_btn.setEnabled(False)
@@ -865,7 +1313,8 @@ class MainWindow(QMainWindow):
         self.center_panel.add_message("assistant", "思考中...")
 
         # 获取当前对话的 session_id（用于续接历史对话）
-        session_id = conv.get("session_id")
+        session_id = conv.get("session_id") if conv else None
+        self._pending_session_id = None  # 重置 pending
 
         # 构建对话上下文（只取最后一条用户消息，历史由 Claude session 管理）
         prompt = self.claude_client.build_prompt(messages)
@@ -879,6 +1328,8 @@ class MainWindow(QMainWindow):
         self._claude_worker.chunk_ready.connect(self._on_chunk)
         self._claude_worker.result_ready.connect(self._on_claude_result)
         self._claude_worker.session_ready.connect(self._on_session_ready)
+        self._claude_worker.thinking_started.connect(self._on_thinking_started)
+        self._claude_worker.thinking_ready.connect(self._on_thinking_ready)
         self._claude_worker.error_occurred.connect(self._on_claude_error)
         self._claude_thread.started.connect(self._claude_worker.run)
         self._claude_thread.start()
@@ -887,11 +1338,22 @@ class MainWindow(QMainWindow):
         """收到 Claude 的 session_id（新对话首次创建）。"""
         self._pending_session_id = session_id
 
+    def _on_thinking_started(self):
+        """Claude 开始思考（替换占位消息）。"""
+        # 将"思考中..."占位消息替换为思考块占位
+        pass  # 思考内容会在 thinking_ready 中完整回传
+
+    def _on_thinking_ready(self, text, duration_ms):
+        """收到完整的思考内容，插入思考块。"""
+        self.center_panel.add_thinking_block(text, duration_ms)
+
     def _on_claude_result(self, result):
         """Claude 执行完成。"""
         self._claude_thread.quit()
         self._claude_thread.wait(1000)
         self._building_response = False
+        self._session_last_active = datetime.now()  # 更新活跃时间
+        print(f"[Title] _on_claude_result, _is_first_send={self._is_first_send}, conv_id={self.current_conv_id}")
         self._finish_response(result)
 
     def _on_claude_error(self, error_msg):
@@ -899,6 +1361,16 @@ class MainWindow(QMainWindow):
         self._claude_thread.quit()
         self._claude_thread.wait(1000)
         self._building_response = False
+        # 检测 session 相关错误（超时 / 超过最大 session 数）
+        error_lower = error_msg.lower()
+        if "session" in error_lower or "max" in error_lower or "limit" in error_lower or "timeout" in error_lower or "expire" in error_lower:
+            # session 已失效，清空 session_id，下次发送时自动创建新 session
+            if self.current_conv_id:
+                conv = load_conversation(self.current_conv_id)
+                if conv and conv.get("session_id"):
+                    conv["session_id"] = None
+                    save_conversation(self.current_conv_id, conv.get("title", ""), conv.get("messages", []), session_id=None)
+                    print(f"[Session] 检测到 session 过期，已清空 session_id")
         self._handle_error(error_msg)
 
     def _on_chunk(self, text):
@@ -913,25 +1385,122 @@ class MainWindow(QMainWindow):
     def _finish_response(self, full_text):
         """在主线程完成回复处理。"""
         self.center_panel.update_last_message(full_text)
+        self._session_last_active = datetime.now()  # 更新活跃时间
 
-        # 保存 AI 回复 + session_id
         if self.current_conv_id:
             conv = load_conversation(self.current_conv_id)
             if conv:
                 messages = conv.get("messages", [])
                 messages.append({"role": "assistant", "content": full_text})
                 session_id = self._pending_session_id or conv.get("session_id")
-                save_conversation(self.current_conv_id, conv.get("title", "新对话"), messages, session_id)
-                self._pending_session_id = None  # 清空 pending
-                self._refresh_sidebar_preview()
+
+                if self._is_first_send:
+                    # 首次发送：先保存规则生成的临时标题，再后台调用 AI 生成
+                    temp_title = self._generate_title(full_text)
+                    save_conversation(self.current_conv_id, temp_title, messages, session_id)
+                    self._is_first_send = False
+                    self._refresh_sidebar_preview()
+                    # 后台 AI 生成标题（不阻塞 UI）
+                    self._start_ai_title_generation(full_text)
+                else:
+                    save_conversation(self.current_conv_id, conv.get("title", "新增对话"), messages, session_id)
+
+                self._pending_session_id = None
 
         self.center_panel.send_btn.setEnabled(True)
         self.center_panel.send_btn.setText("发  送")
+
+    def _generate_title(self, ai_text):
+        """规则生成临时标题——优先用用户第一条消息的关键词。"""
+        # 优先取用户第一条消息
+        if self.current_conv_id:
+            conv = load_conversation(self.current_conv_id)
+            if conv:
+                for msg in conv.get("messages", []):
+                    if msg.get("role") == "user":
+                        text = msg.get("content", "").strip()
+                        # 去掉特殊前缀（@ # ! $ 等命令符）
+                        cleaned = text.lstrip("@#!$").strip()
+                        # 如果用户消息很短（<6字），结合 AI 回复
+                        if len(cleaned) < 6:
+                            break
+                        # 提取关键词：去掉常见无意义前缀
+                        prefixes = ["请问", "帮我", "请帮我", "帮我写", "请写", "能不能", "如何", "为什么", "什么是", "解释一下", "分析一下"]
+                        for p in prefixes:
+                            if cleaned.startswith(p):
+                                cleaned = cleaned[len(p):]
+                                break
+                        cleaned = cleaned.strip()
+                        # 截断到 12 字
+                        if len(cleaned) > 12:
+                            return cleaned[:12] + "…"
+                        return cleaned if cleaned else text
+                        break
+        # 降级：用 AI 回复的第一行关键词
+        if ai_text and ai_text.strip():
+            first_line = ai_text.strip().split("\n")[0].strip()
+            # 去掉 markdown 符号
+            first_line = first_line.lstrip("#*`- ").strip()
+            if len(first_line) > 12:
+                return first_line[:12] + "…"
+            return first_line
+        return "新增对话"
+
+    def _start_ai_title_generation(self, ai_reply):
+        """后台调用 AI 生成标题，失败自动降级。"""
+        print(f"[Title] 开始 AI 标题生成，conv_id={self.current_conv_id}")
+        # 获取用户第一条消息
+        user_msg = ""
+        conv = load_conversation(self.current_conv_id)
+        if conv:
+            for msg in conv.get("messages", []):
+                if msg.get("role") == "user":
+                    user_msg = msg.get("content", "")
+                    break
+
+        if not user_msg and not ai_reply:
+            return
+
+        self._title_worker = TitleWorker(user_msg, ai_reply)
+        self._title_worker.title_ready.connect(self._on_title_ready)
+        self._title_worker.finished.connect(self._on_title_worker_done)
+        self._title_worker.start()
+
+    def _on_title_ready(self, title):
+        """AI 标题生成完成。"""
+        print(f"[Title] AI 标题: '{title}'")
+        if title and len(title) > 0 and self.current_conv_id:
+            # 截断到 12 字
+            if len(title) > 12:
+                title = title[:12] + "…"
+            conv = load_conversation(self.current_conv_id)
+            if conv and conv.get("title", "新增对话") == "新增对话":
+                # 只在标题还是默认值时才替换
+                save_conversation(self.current_conv_id, title, conv.get("messages", []), conv.get("session_id"))
+                self._refresh_sidebar_preview()
+                print(f"[Title] AI 生成标题: {title}")
+
+    def _on_title_worker_done(self):
+        """TitleWorker 线程完成——无论成功失败都到此。"""
+        print(f"[Title] TitleWorker 线程完成")
 
     def _handle_error(self, error_msg):
         self.center_panel.update_last_message(f"[出错] {error_msg}")
         self.center_panel.send_btn.setEnabled(True)
         self.center_panel.send_btn.setText("发  送")
+
+    def _check_session_timeout(self):
+        """定时检查 session 是否超时。"""
+        if not self._session_last_active or not self.current_conv_id:
+            return
+        elapsed = (datetime.now() - self._session_last_active).total_seconds()
+        if elapsed > self._SESSION_TIMEOUT:
+            conv = load_conversation(self.current_conv_id)
+            if conv and conv.get("session_id"):
+                conv["session_id"] = None
+                save_conversation(self.current_conv_id, conv.get("title", ""), conv.get("messages", []), session_id=None)
+                print(f"[Session] 定时检查发现 session 超时（{elapsed:.0f}秒），已清空 session_id")
+            self._session_last_active = None
 
     def _refresh_sidebar_preview(self):
         """只刷新侧边栏预览，不清空消息区。"""
@@ -953,16 +1522,67 @@ class MainWindow(QMainWindow):
                     self.left_panel.conv_list.setCurrentItem(item)
                     break
 
+    def _on_rename_requested(self, conv_id):
+        """右键 → 重命名。"""
+        conv = load_conversation(conv_id)
+        if not conv:
+            return
+        old_title = conv.get("title", "未命名")
+        new_title, ok = QInputDialog.getText(self, "重命名对话", "新标题：", text=old_title)
+        if ok and new_title.strip():
+            messages = conv.get("messages", [])
+            save_conversation(conv_id, new_title.strip(), messages, conv.get("session_id"))
+            self._refresh_sidebar_preview()
+
+    def _on_delete_requested(self, conv_id):
+        """右键 → 删除。"""
+        if self._building_response:
+            QMessageBox.warning(self, "提示", "请等待当前对话完成")
+            return
+
+        conv = load_conversation(conv_id)
+        if not conv:
+            return
+        title = conv.get("title", "未命名")
+        reply = QMessageBox.question(
+            self, "确认删除", f"确定要删除对话「{title}」吗？\n此操作不可恢复。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # 删除文件
+        filepath = os.path.join(DATA_DIR, f"{conv_id}.json")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+        # 如果删除的是当前对话，切换或清空
+        if self.current_conv_id == conv_id:
+            self.current_conv_id = None
+            self._pending_session_id = None
+            # 尝试选中相邻对话
+            convs = list_conversations()
+            if convs:
+                self._select_conversation(convs[0]["id"])
+            else:
+                self.center_panel.show_landing()
+
+        self._refresh_sidebar_preview()
+
     def _new_conversation(self, silent=False):
         if self._building_response:
             QMessageBox.warning(self, "提示", "请等待当前对话完成")
             return
 
         conv_id = str(uuid.uuid4())[:8]
-        title = f"对话 {conv_id}"
+        title = "新增对话"
         save_conversation(conv_id, title, [], session_id=None)
         self.current_conv_id = conv_id
         self._pending_session_id = None
+        self._is_first_send = False
+        self._session_last_active = None
+        self.center_panel.hide_landing()
         self.center_panel.clear_messages()
 
         if not silent:
@@ -1002,6 +1622,14 @@ class MainWindow(QMainWindow):
             self.center_panel.add_message("user", f"[已上传图片: {os.path.basename(filepath)}]")
 
     def closeEvent(self, event):
+        # 终止 ClaudeWorker 子线程
+        if hasattr(self, '_claude_thread') and self._claude_thread.isRunning():
+            self._claude_thread.quit()
+            self._claude_thread.wait(2000)
+        # 终止标题生成线程
+        if hasattr(self, '_title_worker') and self._title_worker.isRunning():
+            self._title_worker.terminate()
+            self._title_worker.wait(2000)
         self.claude_client.stop()
         self._worker_thread.quit()
         self._worker_thread.wait(2000)
@@ -1017,6 +1645,10 @@ def main():
 
     app = QApplication([])
     app.setApplicationName("Claude Code 桌面助手")
+    # 设置窗口图标
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "ico.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

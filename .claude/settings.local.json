@@ -4,7 +4,10 @@
       "Bash(pkill -f \"python.*main.py\")",
       "Bash(python3 \"/Users/wl/开发/My File/claudeView/main.py\")",
       "Bash(python3 *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(pkill -f \"python3 main.py\")",
+      "Bash(python3 main.py)",
+      "Bash(echo \"PID: $!\")"
     ]
   }
 }

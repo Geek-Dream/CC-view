@@ -1,0 +1,34 @@
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] event=PermissionRequest tool=Bash
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] post failed; passthrough
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough
+[hook] event=PermissionRequest tool=Bash
+[hook] post failed; passthrough

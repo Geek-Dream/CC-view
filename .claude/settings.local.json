@@ -9,5 +9,18 @@
       "Bash(python3 main.py)",
       "Bash(echo \"PID: $!\")"
     ]
+  },
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/permission_bridge.py"
+          }
+        ]
+      }
+    ]
   }
 }

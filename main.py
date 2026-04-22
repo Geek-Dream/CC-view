@@ -6,6 +6,9 @@ import json
 import uuid
 import subprocess
 from datetime import datetime
+import threading
+import secrets
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -15,7 +18,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QRect, QPoint
 from PyQt6.QtGui import QFont, QColor, QIcon
-from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from claude_client import ClaudeClient
 
@@ -23,6 +25,37 @@ from claude_client import ClaudeClient
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "conversations")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# ==================== 深色主题令牌 ====================
+
+THEME = {
+    "bg_primary": "#0F0F14",    # 深空黑 主背景
+    "bg_secondary": "#1A1A2E",  # 侧边栏背景
+    "bg_card": "#25253D",       # 卡片背景
+    "bg_input": "#1E1E35",      # 输入框背景
+    "border": "#2D2D4A",        # 边框色
+    "border_focus": "#6366F1",  # 聚焦边框
+    "primary": "#6366F1",       # 紫蓝主题色
+    "primary_hover": "#818CF8", # 悬停色
+    "red": "#EF4444",           # 停止/错误
+    "red_hover": "#DC2626",
+    "green": "#22C55E",         # 成功
+    "green_hover": "#16A34A",
+    "orange": "#F97316",
+    "purple": "#A855F7",
+    "teal": "#0D9488",
+    "text_primary": "#E2E8F0",  # 主文字
+    "text_secondary": "#94A3B8",# 次要文字
+    "text_tertiary": "#64748B", # 弱提示
+    "user_bubble": "#1E3A2F",   # 用户气泡
+    "user_text": "#6EE7B7",
+    "ai_bubble": "#25253D",     # AI 气泡
+    "ai_text": "#E2E8F0",
+    "system_bubble": "#1E293B", # 系统气泡
+    "system_text": "#93C5FD",
+    "thinking_bg": "#1A1A2E",   # 思考块背景
+    "thinking_border": "#2D2D4A",
+}
 
 # ==================== 内置数据 ====================
 
@@ -134,14 +167,25 @@ class ClaudeWorker(QObject):
     result_ready = pyqtSignal(str)          # 最终结果
     session_ready = pyqtSignal(str)         # session_id（新对话首次创建）
     thinking_started = pyqtSignal()         # 开始思考
-    thinking_ready = pyqtSignal(str, int)   # 思考完成（文本, 用时ms）
+    thinking_ready = pyqtSignal(str, int)   # 单段思考完成（文本, 用时ms）
+    status_update = pyqtSignal(str)         # 过程状态（用于前端反馈）
     error_occurred = pyqtSignal(str)
+    stopped = pyqtSignal()                  # 用户主动终止
 
-    def __init__(self, prompt, model, session_id=None):
+    def __init__(self, prompt, model, session_id=None, permission_mode="default"):
         super().__init__()
         self.prompt = prompt
         self.model = model
         self.session_id = session_id  # 已有 session 则传入 --resume 续接
+        self.permission_mode = permission_mode or "default"
+        self._stop_requested = False
+        self._proc = None
+
+    def stop(self):
+        """用户主动终止 Claude 回复。"""
+        self._stop_requested = True
+        if self._proc and self._proc.poll() is None:
+            self._proc.kill()
 
     @pyqtSlot()
     def run(self):
@@ -152,6 +196,7 @@ class ClaudeWorker(QObject):
                 "--output-format", "stream-json",
                 "--include-partial-messages",
                 "--verbose",
+                "--permission-mode", self.permission_mode,
             ]
             # 如果有 session_id，续接该会话
             if self.session_id:
@@ -167,8 +212,9 @@ class ClaudeWorker(QObject):
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # 合并输出，避免 stderr 阻塞
             )
+            self._proc = proc
 
             # 用 TextIOWrapper 处理行缓冲
             import io
@@ -180,7 +226,19 @@ class ClaudeWorker(QObject):
             thinking_start_time = 0 # 思考开始时间戳
             thinking_emitted = False # 防止同一消息重复触发思考信号
 
-            for line in stdout:
+            while True:
+                if self._stop_requested:
+                    print(f"[ClaudeWorker] 收到停止请求")
+                    proc.kill()
+                    self.stopped.emit()
+                    return
+                if proc.poll() is not None:
+                    # 进程已退出
+                    break
+                line = stdout.readline()
+                if not line:
+                    # EOF
+                    break
                 decoded = line.strip()
                 if not decoded:
                     continue
@@ -204,13 +262,17 @@ class ClaudeWorker(QObject):
                         if session_id:
                             self.session_ready.emit(session_id)
                     elif sub == "status":
-                        print(f"[SYSTEM] status={obj.get('status', '')}")
+                        status_text = obj.get("status", "")
+                        print(f"[SYSTEM] status={status_text}")
+                        if status_text:
+                            self.status_update.emit(f"状态: {status_text}")
                     elif sub == "api_retry":
                         attempt = obj.get("attempt", 0)
                         max_retries = obj.get("max_retries", 0)
                         error = obj.get("error", "")
                         delay_ms = obj.get("retry_delay_ms", 0)
                         print(f"[SYSTEM] api_retry attempt={attempt}/{max_retries} error={error} delay={delay_ms:.0f}ms")
+                        self.status_update.emit(f"接口重试: 第{attempt}/{max_retries}次")
 
                 # 流式事件
                 elif msg_type == "stream_event":
@@ -221,6 +283,7 @@ class ClaudeWorker(QObject):
                         msg_id = event.get("message", {}).get("id", "")
                         print(f"[EVENT] message_start id={msg_id[:16]}...")
                         thinking_emitted = False
+                        self.status_update.emit("开始生成回复")
 
                     elif event_type == "content_block_start":
                         block = event.get("content_block", {})
@@ -231,6 +294,11 @@ class ClaudeWorker(QObject):
                             thinking_start_time = time.time()
                             thinking_text = ""
                             self.thinking_started.emit()
+                            self.status_update.emit("正在深度思考")
+                        elif block_type == "tool_use":
+                            self.status_update.emit("正在调用工具")
+                        elif block_type == "text":
+                            self.status_update.emit("正在组织输出")
 
                     elif event_type == "content_block_delta":
                         delta = event.get("delta", {})
@@ -253,8 +321,7 @@ class ClaudeWorker(QObject):
                             thinking_emitted = True
                             thinking_text = ""
                             thinking_start_time = 0
-                            # 思考结束后，正式回复从头累积
-                            full_text = ""
+                            self.status_update.emit("思考完成，继续处理")
 
                     elif event_type == "message_delta":
                         stop = event.get("delta", {}).get("stop_reason", "")
@@ -293,6 +360,10 @@ class ClaudeWorker(QObject):
                     return
 
             # 如果没有收到 result 消息但有累积文本，检查退出码
+            if self._stop_requested:
+                # 用户主动终止，不触发 result/error 信号，直接返回
+                self.stopped.emit()
+                return
             if full_text:
                 proc.wait()
                 if proc.returncode == 0:
@@ -306,64 +377,46 @@ class ClaudeWorker(QObject):
 
 
 class TitleWorker(QThread):
-    """后台生成对话标题，不加入 session，单次请求。"""
-    title_ready = pyqtSignal(str)  # 生成完成（可能为空字符串表示失败）
+    """后台生成对话标题，单次独立请求，不加入 session。"""
+    title_ready = pyqtSignal(str)
 
     def __init__(self, user_message, ai_reply):
         super().__init__()
         self.user_message = user_message
         self.ai_reply = ai_reply
-        self._timeout = 30  # 超时阈值（秒）
+        self._timeout = 30
 
     def run(self):
         try:
-            # 构建极简 prompt
             prompt = (
-                f"User said: {self.user_message[:200]}\n"
-                f"AI replied (first 500 chars): {self.ai_reply[:500]}\n"
-                f"Reply with ONLY a short Chinese title (max 12 chars) for this conversation. "
-                f"No quotes, no explanation, just the title."
+                f"请用一句话总结以下对话内容，作为对话标题，不超过15个字。\n"
+                f"只输出标题文本，不要解释，不要加任何标点符号。\n\n"
+                f"User: {self.user_message[:300]}\n"
+                f"Assistant: {self.ai_reply[:500]}"
             )
             cmd = [
                 "claude", "-p", prompt,
                 "--model", "haiku",
-                "--output-format", "stream-json",
+                "--no-session-persistence",
             ]
-            print(f"[TitleWorker] 启动，命令: {' '.join(cmd[:4])}...")
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            full_text = ""
-
-            import io
-            import time
-            start = time.time()
-            stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", line_buffering=True)
-
-            for line in stdout:
-                if time.time() - start > self._timeout:
-                    print(f"[TitleWorker] 超时（{self._timeout}s），终止")
-                    proc.kill()
-                    return
-                decoded = line.strip()
-                if not decoded:
-                    continue
-                try:
-                    obj = json.loads(decoded)
-                    msg_type = obj.get("type", "")
-                    if msg_type == "content_block_delta":
-                        delta = obj.get("delta", {})
-                        if delta.get("type") == "text_delta":
-                            full_text += delta.get("text", "")
-                except json.JSONDecodeError:
-                    continue
-
-            proc.wait(timeout=5)
-            title = full_text.strip().strip('"').strip("'").strip()
-            # 去掉 markdown 符号
-            title = title.lstrip("#*`- ").strip()
-            if title and len(title) <= 30:
+            print(f"[TitleWorker] 启动")
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
+            title = proc.stdout.strip()
+            # 清理：去掉 markdown 符号、引号、前后缀
+            title = title.lstrip("#*`- ").strip().strip('"').strip("'").strip()
+            # 只取第一行
+            title = title.split("\n")[0].strip()
+            if title and len(title) > 15:
+                title = title[:15] + "…"
+            if title:
+                print(f"[TitleWorker] 生成标题: {title}")
                 self.title_ready.emit(title)
-        except Exception:
-            pass  # 静默失败，调用方会降级为规则生成
+            else:
+                print(f"[TitleWorker] 未生成有效标题, returncode={proc.returncode}")
+        except subprocess.TimeoutExpired:
+            print(f"[TitleWorker] 超时（{self._timeout}s）")
+        except Exception as e:
+            print(f"[TitleWorker] 异常: {e}")
 
 
 # ==================== 消息气泡 ====================
@@ -402,25 +455,36 @@ class MessageRow(QWidget):
         )
         bubble_layout.addWidget(content)
 
-        # 样式
+        # 样式 — 深色主题
         if role == "user":
-            bubble.setStyleSheet("""
-                #bubble { background-color: #DCF8C6; border-radius: 10px; }
-                #bubble QLabel { color: #166534; background: transparent; }
+            bubble.setStyleSheet(f"""
+                #bubble {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {THEME['user_bubble']}, stop:1 #162923);
+                    border-radius: 12px;
+                    border: 1px solid #2D4A3A;
+                }}
+                #bubble QLabel {{ color: {THEME['user_text']}; background: transparent; }}
             """)
             layout.addStretch()
             layout.addWidget(bubble)
         elif role == "system":
-            bubble.setStyleSheet("""
-                #bubble { background-color: #DBEAFE; border-radius: 10px; }
-                #bubble QLabel { color: #1E40AF; background: transparent; }
+            bubble.setStyleSheet(f"""
+                #bubble {{
+                    background-color: {THEME['system_bubble']}; border-radius: 12px;
+                    border: 1px solid #2D3A4A;
+                }}
+                #bubble QLabel {{ color: {THEME['system_text']}; background: transparent; }}
             """)
             layout.addWidget(bubble)
             layout.addStretch()
         else:
-            bubble.setStyleSheet("""
-                #bubble { background-color: #F0F0F0; border-radius: 10px; }
-                #bubble QLabel { color: #111; background: transparent; }
+            bubble.setStyleSheet(f"""
+                #bubble {{
+                    background-color: {THEME['ai_bubble']}; border-radius: 12px;
+                    border: 1px solid {THEME['border']};
+                }}
+                #bubble QLabel {{ color: {THEME['ai_text']}; background: transparent; }}
             """)
             layout.addWidget(bubble)
             layout.addStretch()
@@ -445,7 +509,29 @@ class MessageRow(QWidget):
             return
         self._thinking_dots = (self._thinking_dots + 1) % 4
         dots = "." * self._thinking_dots
-        self._content_label.setText(f"思考中{dots}")
+        self._content_label.setText(f"🤔 思考中{dots}")
+
+    def _start_processing_animation(self, base_text):
+        """启动处理中动画（转圈）。"""
+        self._processing_base_text = base_text
+        self._processing_idx = 0
+        self._processing_frames = ["◐", "◓", "◑", "◒"]
+        if hasattr(self, "_processing_timer") and self._processing_timer:
+            self._processing_timer.stop()
+        self._processing_timer = QTimer()
+        self._processing_timer.timeout.connect(self._update_processing)
+        self._processing_timer.start(160)
+
+    def _stop_processing_animation(self):
+        if hasattr(self, "_processing_timer") and self._processing_timer:
+            self._processing_timer.stop()
+            self._processing_timer = None
+
+    def _update_processing(self):
+        frame = self._processing_frames[self._processing_idx % len(self._processing_frames)]
+        self._processing_idx += 1
+        # 展示 “◐ 处理中：xxx”
+        self._content_label.setText(f"{frame} {self._processing_base_text}")
 
     def _type_next_char(self):
         """打字机动画：每次显示一个字符。"""
@@ -465,6 +551,16 @@ class MessageRow(QWidget):
         """更新消息文字（用于流式输出）。"""
         if not hasattr(self, '_content_label'):
             return
+        # 处理中状态：持续动画提示（正文开始前的过程态）
+        if self.role == "assistant" and isinstance(text, str) and text.startswith("处理中："):
+            base = text
+            # 避免重复启动 timer
+            current = getattr(self, "_processing_base_text", None)
+            if current != base:
+                self._start_processing_animation(base)
+            return
+        else:
+            self._stop_processing_animation()
         # 停止思考动画
         if self._is_thinking:
             self._is_thinking = False
@@ -494,6 +590,12 @@ class MessageRow(QWidget):
             self._type_timer.timeout.connect(self._type_next_char)
             self._type_timer.start(20)
 
+    def get_text(self):
+        """获取当前显示文本。"""
+        if not hasattr(self, '_content_label'):
+            return ""
+        return self._content_label.text()
+
 
 class ThinkingBlock(QFrame):
     """可折叠的思考内容块。"""
@@ -502,7 +604,9 @@ class ThinkingBlock(QFrame):
         super().__init__(parent)
         self.setObjectName("thinkingBlock")
         self._expanded = False
-        self._full_text = text
+        self._entries = []
+        self._total_duration_ms = 0
+        self._in_progress = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -517,21 +621,21 @@ class ThinkingBlock(QFrame):
         h_layout.setSpacing(6)
 
         icon_label = QLabel("[思考]")
-        icon_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #6B7280;")
+        icon_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {THEME['text_tertiary']};")
         h_layout.addWidget(icon_label)
 
-        title_label = QLabel(f"深度思考已完成")
-        title_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #6B7280;")
-        h_layout.addWidget(title_label)
+        self._title_label = QLabel("深度思考中")
+        self._title_label.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {THEME['text_secondary']};")
+        h_layout.addWidget(self._title_label)
 
-        duration_label = QLabel(f"（用时 {self._format_duration(duration_ms)}）")
-        duration_label.setStyleSheet("font-size: 12px; color: #9CA3AF;")
-        h_layout.addWidget(duration_label)
+        self._duration_label = QLabel("（用时 0毫秒）")
+        self._duration_label.setStyleSheet(f"font-size: 12px; color: {THEME['text_tertiary']};")
+        h_layout.addWidget(self._duration_label)
 
         h_layout.addStretch()
 
         self._arrow_label = QLabel("▶")
-        self._arrow_label.setStyleSheet("font-size: 10px; color: #9CA3AF;")
+        self._arrow_label.setStyleSheet(f"font-size: 10px; color: {THEME['text_tertiary']};")
         h_layout.addWidget(self._arrow_label)
 
         layout.addWidget(header)
@@ -543,9 +647,9 @@ class ThinkingBlock(QFrame):
         c_layout.setContentsMargins(10, 0, 10, 8)
         c_layout.setSpacing(0)
 
-        self._content_label = QLabel(text)
+        self._content_label = QLabel("")
         self._content_label.setWordWrap(True)
-        self._content_label.setStyleSheet("font-size: 12px; color: #6B7280; line-height: 1.6;")
+        self._content_label.setStyleSheet(f"font-size: 12px; color: {THEME['text_secondary']}; line-height: 1.6;")
         self._content_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
@@ -554,11 +658,15 @@ class ThinkingBlock(QFrame):
         self._content_frame.setVisible(False)
         layout.addWidget(self._content_frame)
 
-        # 样式
-        self.setStyleSheet("""
-            #thinkingBlock { background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; margin: 2px 0; }
-            #thinkingHeader { background-color: transparent; }
-            #thinkingContent { background-color: transparent; }
+        # 样式 — 深色主题
+        self.setStyleSheet(f"""
+            #thinkingBlock {{
+                background-color: {THEME['thinking_bg']};
+                border: 1px solid {THEME['thinking_border']};
+                border-radius: 10px; margin: 2px 0;
+            }}
+            #thinkingHeader {{ background-color: transparent; }}
+            #thinkingContent {{ background-color: transparent; }}
         """)
 
         # 点击切换展开/折叠
@@ -568,13 +676,63 @@ class ThinkingBlock(QFrame):
             self._arrow_label.setText("▼" if self._expanded else "▶")
 
         header.mousePressEvent = lambda e: toggle()
+        self.append_entry(text, duration_ms)
+
+    def append_entry(self, text, duration_ms):
+        """追加一段思考内容。"""
+        clean_text = (text or "").strip()
+        if not clean_text:
+            return
+        self._entries.append({"text": clean_text, "duration_ms": max(0, int(duration_ms or 0))})
+        self._total_duration_ms += max(0, int(duration_ms or 0))
+        self._refresh_content()
+
+    def set_in_progress(self, in_progress):
+        """更新思考状态。"""
+        self._in_progress = bool(in_progress)
+        self._refresh_header()
+
+    def _refresh_content(self):
+        parts = []
+        for idx, entry in enumerate(self._entries, start=1):
+            parts.append(f"[第{idx}段 | 用时 {self._format_duration(entry['duration_ms'])}]")
+            parts.append(entry["text"])
+            parts.append("")
+        self._content_label.setText("\n".join(parts).strip())
+        self._refresh_header()
+
+    def _refresh_header(self):
+        count = len(self._entries)
+        if self._in_progress:
+            self._title_label.setText(f"深度思考中（已记录{count}段）")
+        else:
+            self._title_label.setText(f"深度思考已完成（共{count}段）")
+        self._duration_label.setText(f"（累计用时 {self._format_duration(self._total_duration_ms)}）")
 
     @staticmethod
     def _format_duration(ms):
-        """格式化时间为秒。"""
-        if ms < 1000:
-            return f"{ms}毫秒"
-        return f"{ms / 1000:.0f}秒"
+        """格式化时间为 分/秒/毫秒。"""
+        try:
+            ms = int(ms or 0)
+        except Exception:
+            ms = 0
+        if ms < 0:
+            ms = 0
+        minutes = ms // 60000
+        seconds = (ms % 60000) // 1000
+        millis = ms % 1000
+
+        parts = []
+        if minutes > 0:
+            parts.append(f"{minutes}分")
+        if seconds > 0 or minutes > 0:
+            parts.append(f"{seconds}秒")
+        # 低于 1 秒时显示毫秒；否则只在有毫秒余数时显示
+        if minutes == 0 and seconds == 0:
+            parts.append(f"{millis}毫秒")
+        elif millis > 0:
+            parts.append(f"{millis}毫秒")
+        return "".join(parts) if parts else "0毫秒"
 
 
 class ThinkingRow(QWidget):
@@ -585,12 +743,19 @@ class ThinkingRow(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 2, 8, 2)
         layout.setSpacing(0)
-        layout.addWidget(ThinkingBlock(text, duration_ms))
+        self._block = ThinkingBlock(text, duration_ms)
+        layout.addWidget(self._block)
         layout.addStretch()
+
+    def append_thinking(self, text, duration_ms):
+        self._block.append_entry(text, duration_ms)
+
+    def set_in_progress(self, in_progress):
+        self._block.set_in_progress(in_progress)
 
 
 class LandingPage(QFrame):
-    """空状态引导页，无对话时显示。"""
+    """空状态引导页，无对话时显示 — 深色主题 + 浮动动画。"""
 
     send_clicked = pyqtSignal(str)  # 用户从着陆页发送消息
 
@@ -598,82 +763,98 @@ class LandingPage(QFrame):
         super().__init__(parent)
         self.setObjectName("landingPage")
         self.setVisible(False)
+        self.setStyleSheet(f"""
+            #landingPage {{
+                background-color: {THEME['bg_primary']};
+            }}
+        """)
 
         # 透明度效果
-        self._opacity_effect = QGraphicsOpacityEffect(self)
-        self._opacity_effect.setOpacity(1.0)
-        self.setGraphicsEffect(self._opacity_effect)
-
+        self._opacity_effect = None
         self._fade_animation = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(16)
 
-        # 顶部友好提示
+        # 顶部渐变文字
         hint_top = QLabel("你好，我是 Claude")
         hint_top.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_top.setStyleSheet("font-size: 26px; color: #1F2937; font-weight: bold; margin-bottom: 4px;")
+        hint_top.setStyleSheet(f"""
+            font-size: 30px; color: {THEME['text_primary']};
+            font-weight: bold; margin-bottom: 6px;
+        """)
         layout.addWidget(hint_top)
 
         hint_sub = QLabel("我可以帮你写代码、回答问题、分析文件")
         hint_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_sub.setStyleSheet("font-size: 15px; color: #6B7280;")
+        hint_sub.setStyleSheet(f"font-size: 15px; color: {THEME['text_tertiary']};")
         layout.addWidget(hint_sub)
 
-        layout.addSpacing(20)
+        layout.addSpacing(30)
         layout.addStretch()
 
         # 居中容器
         center = QWidget()
         center_layout = QVBoxLayout(center)
-        center_layout.setSpacing(24)
+        center_layout.setSpacing(20)
 
-        # 图标区域（简单几何图形，避免版权）
+        # 图标区域 — 紫蓝渐变圆形 + 浮动动画
         icon_label = QLabel("✦")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setMinimumSize(80, 80)
-        icon_label.setMaximumSize(80, 80)
-        icon_label.setStyleSheet("""
-            QLabel {
-                background-color: #E0E7FF; border-radius: 40px;
-                font-size: 36px; color: #4F46E5;
-            }
+        icon_label.setMinimumSize(96, 96)
+        icon_label.setMaximumSize(96, 96)
+        icon_label.setStyleSheet(f"""
+            QLabel {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {THEME['primary']}, stop:1 #8B5CF6);
+                border-radius: 48px; font-size: 44px; color: white;
+            }}
         """)
-        center_layout.addWidget(icon_label)
+        self._icon_label = icon_label  # 保存引用用于动画
+        center_layout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # 文字提示
         hint_label = QLabel("请开始我们的对话吧")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_label.setStyleSheet("font-size: 16px; color: #9CA3AF;")
+        hint_label.setStyleSheet(f"font-size: 16px; color: {THEME['text_tertiary']};")
         center_layout.addWidget(hint_label)
 
         # 输入区
         input_layout = QHBoxLayout()
-        input_layout.setSpacing(8)
+        input_layout.setSpacing(10)
 
         self._input = QTextEdit()
         self._input.setPlaceholderText("输入消息...")
-        self._input.setMinimumHeight(44)
+        self._input.setMinimumHeight(48)
         self._input.setMaximumHeight(100)
-        self._input.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #D1D5DB; border-radius: 8px; padding: 8px 12px;
-                font-size: 14px; background-color: white;
-            }
-            QTextEdit:focus { border-color: #3B82F6; }
+        self._input.setStyleSheet(f"""
+            QTextEdit {{
+                border: 1px solid {THEME['border']}; border-radius: 12px;
+                padding: 10px 14px; font-size: 14px;
+                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+            }}
+            QTextEdit:focus {{ border-color: {THEME['border_focus']}; }}
+            QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}
         """)
         input_layout.addWidget(self._input)
 
         self._send_btn = QPushButton("发  送")
-        self._send_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6; color: white; border: none;
-                border-radius: 8px; padding: 8px 20px; font-size: 14px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #2563EB; }
+        self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._send_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary']}, stop:1 #8B5CF6);
+                color: white; border: none; border-radius: 12px;
+                padding: 10px 24px; font-size: 14px; font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary_hover']}, stop:1 #A78BFA);
+            }}
+            QPushButton:pressed {{ opacity: 0.85; }}
         """)
-        self._send_btn.setMinimumHeight(44)
+        self._send_btn.setMinimumHeight(48)
         input_layout.addWidget(self._send_btn)
 
         center_layout.addLayout(input_layout)
@@ -705,26 +886,45 @@ class LandingPage(QFrame):
 
     def fade_in(self, duration=500):
         """淡入动画。"""
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+
         self.setVisible(True)
-        self._opacity_effect.setOpacity(0.01)
-        self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
+        effect = QGraphicsOpacityEffect(self)
+        effect.setOpacity(0.0)
+        self.setGraphicsEffect(effect)
+        self._opacity_effect = effect
+
+        self._fade_animation = QPropertyAnimation(effect, b"opacity")
         self._fade_animation.setDuration(duration)
-        self._fade_animation.setStartValue(0.01)
+        self._fade_animation.setStartValue(0.0)
         self._fade_animation.setEndValue(1.0)
         self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._fade_animation.start()
-        # 保持引用防止被 GC
         self._anim_ref = self._fade_animation
 
     def fade_out(self, duration=300, callback=None):
         """淡出动画。"""
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+
+        # 如果还没有 effect，创建一个
+        if self._opacity_effect is None:
+            effect = QGraphicsOpacityEffect(self)
+            effect.setOpacity(1.0)
+            self.setGraphicsEffect(effect)
+            self._opacity_effect = effect
+
         self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
         self._fade_animation.setDuration(duration)
         self._fade_animation.setStartValue(1.0)
-        self._fade_animation.setEndValue(0.01)
+        self._fade_animation.setEndValue(0.0)
         self._fade_animation.setEasingCurve(QEasingCurve.Type.InCubic)
-        if callback:
-            self._fade_animation.finished.connect(callback)
+
+        def on_done():
+            self.setVisible(False)
+            if callback:
+                callback()
+
+        self._fade_animation.finished.connect(on_done)
         self._fade_animation.start()
         self._anim_ref = self._fade_animation
 
@@ -739,13 +939,33 @@ class PopupList(QDialog):
         self.setMinimumWidth(380)
         self.setMinimumHeight(200)
         self.resize(380, 220)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {THEME['bg_secondary']};
+            }}
+        """)
         layout = QVBoxLayout(self)
 
         title_label = QLabel(title)
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 8px;")
+        title_label.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 8px; color: {THEME['text_primary']};")
         layout.addWidget(title_label)
 
         self.list_widget = QListWidget()
+        self.list_widget.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {THEME['border']}; border-radius: 8px;
+                background-color: {THEME['bg_card']}; color: {THEME['text_secondary']};
+            }}
+            QListWidget::item {{
+                padding: 8px 12px; border-bottom: 1px solid {THEME['border']};
+                color: {THEME['text_secondary']};
+            }}
+            QListWidget::item:hover {{ background-color: {THEME['bg_secondary']}; }}
+            QListWidget::item:selected {{
+                background-color: {THEME['primary']}; color: white;
+                border-radius: 4px;
+            }}
+        """)
         for name, desc in items:
             item = QListWidgetItem(f"{name}  —  {desc}")
             item.setData(Qt.ItemDataRole.UserRole, name)
@@ -769,39 +989,60 @@ class LeftPanel(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(240)
+        self.setStyleSheet(f"""
+            LeftPanel {{
+                background-color: {THEME['bg_secondary']};
+                border-right: 1px solid {THEME['border']};
+            }}
+        """)
         self._build()
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setSpacing(6)
 
         self.new_btn = QPushButton("✚ 新建对话")
-        self.new_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6; color: white; border: none;
-                border-radius: 6px; padding: 10px; font-size: 14px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #2563EB; }
+        self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.new_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary']}, stop:1 #8B5CF6);
+                color: white; border: none; border-radius: 8px;
+                padding: 10px; font-size: 14px; font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary_hover']}, stop:1 #A78BFA);
+            }}
+            QPushButton:pressed {{ opacity: 0.85; }}
         """)
         layout.addWidget(self.new_btn)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #ddd;")
+        line.setStyleSheet(f"background-color: {THEME['border']};")
         layout.addWidget(line)
 
         title = QLabel("历史对话")
-        title.setStyleSheet("font-weight: bold; font-size: 14px; padding: 4px 0;")
+        title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
         layout.addWidget(title)
 
         self.conv_list = QListWidget()
-        self.conv_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #ccc; border-radius: 6px; background-color: white;
-            }
-            QListWidget::item { padding: 8px; border-bottom: 1px solid #eee; }
-            QListWidget::item:selected { background-color: #3B82F6; color: white; }
+        self.conv_list.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {THEME['border']}; border-radius: 8px;
+                background-color: {THEME['bg_secondary']}; color: {THEME['text_primary']};
+            }}
+            QListWidget::item {{
+                padding: 8px; border-bottom: 1px solid {THEME['border']};
+                color: {THEME['text_secondary']};
+            }}
+            QListWidget::item:hover {{ background-color: {THEME['bg_card']}; }}
+            QListWidget::item:selected {{
+                background-color: {THEME['primary']}; color: white;
+                border-radius: 4px;
+            }}
         """)
         self.conv_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.conv_list.customContextMenuRequested.connect(self._on_context_menu)
@@ -839,6 +1080,11 @@ class LeftPanel(QFrame):
 class CenterPanel(QFrame):
     """中间面板：模型选择 + 消息区 + 输入区。"""
 
+    send_clicked = pyqtSignal(str)    # 用户点击发送（正常模式）
+    stop_clicked = pyqtSignal()       # 用户点击停止（AI 回复中）
+    permission_accept_clicked = pyqtSignal()
+    permission_reject_clicked = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build()
@@ -848,20 +1094,57 @@ class CenterPanel(QFrame):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        # 顶部：模型选择
+        # 深色主题背景
+        self.setStyleSheet(f"""
+            CenterPanel {{
+                background-color: {THEME['bg_primary']};
+            }}
+        """)
+
+        # 顶部：模型选择 + 深色主题
         top_bar = QHBoxLayout()
         top_bar.setSpacing(8)
-        top_bar.addWidget(QLabel("模型:"))
+
+        combo_style = f"""
+            QComboBox {{
+                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']}; border-radius: 6px;
+                padding: 4px 12px; font-size: 12px; min-width: 120px;
+            }}
+            QComboBox:hover {{ border-color: {THEME['border_focus']}; }}
+            QComboBox::drop-down {{ border: none; }}
+            QComboBox QAbstractItemView {{
+                background-color: {THEME['bg_card']}; color: {THEME['text_primary']};
+                selection-background-color: {THEME['primary']};
+            }}
+        """
+
+        model_label = QLabel("模型:")
+        model_label.setStyleSheet(f"color: {THEME['text_secondary']}; font-size: 12px;")
+        top_bar.addWidget(model_label)
 
         self.model_combo = QComboBox()
         self.model_combo.addItems(["opus (最强)", "sonnet (推荐)", "haiku (最快)"])
         self.model_combo.setCurrentIndex(1)
         self.model_combo.setMinimumWidth(150)
+        self.model_combo.setStyleSheet(combo_style)
         top_bar.addWidget(self.model_combo)
 
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["普通模式", "Agent 模式 (多步骤任务)"])
+        self.mode_combo.setStyleSheet(combo_style)
         top_bar.addWidget(self.mode_combo)
+
+        perm_label = QLabel("权限:")
+        perm_label.setStyleSheet(f"color: {THEME['text_secondary']}; font-size: 12px;")
+        top_bar.addWidget(perm_label)
+
+        self.permission_combo = QComboBox()
+        self.permission_combo.addItems(["default(逐次询问)", "acceptEdits(自动编辑)", "plan(只读)"])
+        self.permission_combo.setCurrentIndex(0)
+        self.permission_combo.setMinimumWidth(170)
+        self.permission_combo.setStyleSheet(combo_style)
+        top_bar.addWidget(self.permission_combo)
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
@@ -869,7 +1152,7 @@ class CenterPanel(QFrame):
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #ddd;")
+        line.setStyleSheet(f"background-color: {THEME['border']};")
         self._separator_line = line
         layout.addWidget(line)
 
@@ -877,9 +1160,16 @@ class CenterPanel(QFrame):
         self.msg_scroll = QScrollArea()
         self.msg_scroll.setWidgetResizable(True)
         self.msg_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.msg_scroll.setStyleSheet("QScrollArea { border: 1px solid #ccc; border-radius: 6px; background: white; }")
+        self.msg_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                border: 1px solid {THEME['border']}; border-radius: 10px;
+                background: {THEME['bg_primary']};
+            }}
+        """)
 
         self.msg_container = QWidget()
+        self.msg_container.setAutoFillBackground(True)
+        self.msg_container.setStyleSheet(f"background-color: {THEME['bg_primary']};")
         self.msg_layout = QVBoxLayout(self.msg_container)
         self.msg_layout.setContentsMargins(4, 4, 4, 4)
         self.msg_layout.setSpacing(2)
@@ -891,16 +1181,20 @@ class CenterPanel(QFrame):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
         btn_defs = [
-            ("@ 引用文件", "#3B82F6"), ("# 智能体", "#22C55E"),
-            ("! 提示词", "#F97316"), ("$ Skills", "#A855F7"), (" 图片", "#0D9488"),
+            ("@ 引用文件", THEME["primary"]), ("# 智能体", THEME["green"]),
+            ("! 提示词", THEME["orange"]), ("$ Skills", THEME["purple"]), (" 图片", THEME["teal"]),
         ]
         for text, color in btn_defs:
             btn = QPushButton(text)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             key = text.strip().split()[0].replace("@", "ref").replace("#", "agent").replace("!", "prompt").replace("$", "skill").replace("图片", "image")
             btn.setStyleSheet(f"""
-                QPushButton {{ background-color: {color}; color: white; border: none;
-                    border-radius: 4px; padding: 4px 10px; font-size: 11px; }}
+                QPushButton {{
+                    background-color: {color}; color: white; border: none;
+                    border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold;
+                }}
                 QPushButton:hover {{ opacity: 0.85; }}
+                QPushButton:pressed {{ opacity: 0.7; }}
             """)
             setattr(self, f"btn_{key}", btn)
             toolbar.addWidget(btn)
@@ -910,33 +1204,81 @@ class CenterPanel(QFrame):
         self._toolbar_widgets = [toolbar.itemAt(i).widget() for i in range(toolbar.count()) if toolbar.itemAt(i).widget()]
 
         # 输入区
+        # 权限请求条（输入框上方）
+        self.permission_bar = QFrame()
+        self.permission_bar.setVisible(False)
+        self.permission_bar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_card']};
+                border: 1px solid {THEME['border']};
+                border-radius: 10px; padding: 6px;
+            }}
+            QLabel {{ color: {THEME['text_secondary']}; font-size: 12px; }}
+        """)
+        perm_layout = QHBoxLayout(self.permission_bar)
+        perm_layout.setContentsMargins(10, 6, 10, 6)
+        perm_layout.setSpacing(8)
+        self.permission_label = QLabel("检测到权限请求")
+        perm_layout.addWidget(self.permission_label)
+        perm_layout.addStretch()
+        self.permission_yes_btn = QPushButton("允许")
+        self.permission_yes_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.permission_yes_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME['green']}; color: white; border: none;
+                border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {THEME['green_hover']}; }}
+        """)
+        self.permission_no_btn = QPushButton("拒绝")
+        self.permission_no_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.permission_no_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME['red']}; color: white; border: none;
+                border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {THEME['red_hover']}; }}
+        """)
+        perm_layout.addWidget(self.permission_yes_btn)
+        perm_layout.addWidget(self.permission_no_btn)
+        layout.addWidget(self.permission_bar)
+
         input_layout = QHBoxLayout()
-        input_layout.setSpacing(6)
+        input_layout.setSpacing(8)
 
         self.input_box = QTextEdit()
         self.input_box.setPlaceholderText("输入消息...")
         self.input_box.setInputMethodHints(Qt.InputMethodHint.ImhNone)
-        self.input_box.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #ccc; border-radius: 6px; padding: 8px 12px;
-                font-size: 14px; background-color: white;
-            }
-            QTextEdit:focus { border-color: #3B82F6; }
+        self.input_box.setStyleSheet(f"""
+            QTextEdit {{
+                border: 1px solid {THEME['border']}; border-radius: 10px;
+                padding: 8px 12px; font-size: 14px;
+                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+            }}
+            QTextEdit:focus {{ border-color: {THEME['border_focus']}; }}
+            QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}
         """)
-        self.input_box.setMinimumHeight(36)
+        self.input_box.setMinimumHeight(40)
         self.input_box.setMaximumHeight(120)
         input_layout.addWidget(self.input_box)
 
         self.send_btn = QPushButton("发  送")
-        self.send_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6; color: white; border: none;
-                border-radius: 6px; padding: 8px 20px; font-size: 14px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #2563EB; }
-            QPushButton:disabled { background-color: #9CA3AF; }
+        self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.send_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary']}, stop:1 #8B5CF6);
+                color: white; border: none; border-radius: 10px;
+                padding: 8px 20px; font-size: 14px; font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {THEME['primary_hover']}, stop:1 #A78BFA);
+            }}
+            QPushButton:disabled {{ background-color: {THEME['text_tertiary']}; }}
+            QPushButton:pressed {{ opacity: 0.85; }}
         """)
-        self.send_btn.setMinimumHeight(36)
+        self.send_btn.setMinimumHeight(40)
         input_layout.addWidget(self.send_btn)
         layout.addLayout(input_layout)
 
@@ -948,6 +1290,68 @@ class CenterPanel(QFrame):
 
         # 默认显示着陆页
         self.show_landing()
+
+        # 信号：按钮点击根据模式发送不同信号
+        self.send_btn.clicked.connect(self._on_btn_click)
+        self._is_building_response = False  # 按钮模式标记
+        self.permission_yes_btn.clicked.connect(lambda: self.permission_accept_clicked.emit())
+        self.permission_no_btn.clicked.connect(lambda: self.permission_reject_clicked.emit())
+
+    def show_permission_request(self, text):
+        self.permission_label.setText(text)
+        self.permission_bar.setVisible(True)
+
+    def hide_permission_request(self):
+        self.permission_bar.setVisible(False)
+
+    def set_building_response(self, building):
+        """切换按钮模式：AI 回复中显示"停止"，否则显示"发送"。"""
+        self._is_building_response = building
+        if building:
+            self.send_btn.setEnabled(True)
+            self.send_btn.setText("停  止")
+            self.send_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {THEME['red']}, stop:1 #B91C1C);
+                    color: white; border: none; border-radius: 10px;
+                    padding: 8px 20px; font-size: 14px; font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {THEME['red_hover']}, stop:1 #991B1B);
+                }}
+                QPushButton:disabled {{ background-color: {THEME['text_tertiary']}; }}
+                QPushButton:pressed {{ opacity: 0.85; }}
+            """)
+        else:
+            self.send_btn.setEnabled(True)
+            self.send_btn.setText("发  送")
+            self.send_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {THEME['primary']}, stop:1 #8B5CF6);
+                    color: white; border: none; border-radius: 10px;
+                    padding: 8px 20px; font-size: 14px; font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {THEME['primary_hover']}, stop:1 #A78BFA);
+                }}
+                QPushButton:disabled {{ background-color: {THEME['text_tertiary']}; }}
+                QPushButton:pressed {{ opacity: 0.85; }}
+            """)
+
+    def _on_btn_click(self):
+        if self._is_building_response:
+            self.stop_clicked.emit()
+        else:
+            self._on_send()
+
+    def _on_send(self):
+        text = self.input_box.toPlainText().strip()
+        if text:
+            self.send_clicked.emit(text)
 
     def clear_messages(self):
         """清空消息区。"""
@@ -980,21 +1384,43 @@ class CenterPanel(QFrame):
             w.setVisible(True)
 
     def _animate_widget_in(self, widget, duration=400):
-        """给新添加的 widget 加淡入+上移动画。"""
-        effect = QGraphicsOpacityEffect(widget)
-        effect.setOpacity(0.01)
-        widget.setGraphicsEffect(effect)
-        # 淡入
-        anim = QPropertyAnimation(effect, b"opacity")
-        anim.setDuration(duration)
-        anim.setStartValue(0.01)
-        anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.start()
-        # 动画结束后清理 effect，避免长期占用
-        anim.finished.connect(lambda: widget.setGraphicsEffect(None))
-        # 保存引用
-        widget._anim = anim
+        """给新添加的 widget 加淡入动画。
+
+        避免在布局更新期间设置 QGraphicsEffect，使用 QTimer 延迟启动。
+        """
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+
+        # 先完全隐藏
+        widget.setVisible(False)
+
+        def _start_fade():
+            """延迟一帧后启动淡入动画。"""
+            widget.setVisible(True)
+            effect = QGraphicsOpacityEffect(widget)
+            effect.setOpacity(0.0)
+            widget.setGraphicsEffect(effect)
+
+            anim = QPropertyAnimation(effect, b"opacity")
+            anim.setDuration(duration)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+            # 保存引用，避免 GC
+            widget._fade_anim = anim
+            widget._fade_effect = effect
+
+            def on_finished():
+                # 动画结束后移除 effect，避免长期占用 paint 管线
+                if widget is not None and widget.graphicsEffect() is effect:
+                    widget.setGraphicsEffect(None)
+                    widget._fade_effect = None
+
+            anim.finished.connect(on_finished)
+            anim.start()
+
+        # 延迟 50ms 启动动画，避免与 paint 事件冲突
+        QTimer.singleShot(50, _start_fade)
 
     def add_message(self, role, text):
         """添加消息到聊天区，带淡入动画。"""
@@ -1005,25 +1431,57 @@ class CenterPanel(QFrame):
         self._scroll_to_bottom()
         return row
 
-    def add_thinking_block(self, text, duration_ms):
-        """添加思考块到聊天区（在 AI 回复前），带淡入动画。"""
-        # 只检查紧邻最后一条消息之前的 widget（每轮对话各自一个思考块）
-        last_idx = self.msg_layout.count() - 2  # 跳过弹簧
-        if last_idx >= 0:
-            item = self.msg_layout.itemAt(last_idx)
+    def _find_latest_thinking_row(self):
+        if self.msg_layout.count() <= 1:
+            return None
+        for i in range(self.msg_layout.count() - 2, -1, -1):
+            item = self.msg_layout.itemAt(i)
             if item and item.widget() and isinstance(item.widget(), ThinkingRow):
-                return  # 紧邻的最后一条已经是 ThinkingRow，跳过
-        row = ThinkingRow(text, duration_ms)
-        spring_index = self.msg_layout.count() - 1
-        self.msg_layout.insertWidget(spring_index, row)
-        self._animate_widget_in(row)
+                return item.widget()
+            if item and item.widget() and isinstance(item.widget(), MessageRow):
+                break
+        return None
+
+    def add_thinking_block(self, text, duration_ms, in_progress=True):
+        """添加或更新当前轮次思考块。"""
+        row = self._find_latest_thinking_row()
+        if row is None:
+            row = ThinkingRow(text, duration_ms)
+            spring_index = self.msg_layout.count() - 1
+            self.msg_layout.insertWidget(spring_index, row)
+            self._animate_widget_in(row)
+        else:
+            row.append_thinking(text, duration_ms)
+        row.set_in_progress(in_progress)
         self._scroll_to_bottom()
         return row
+
+    def set_thinking_block_state(self, in_progress):
+        """更新当前轮次思考块状态。"""
+        row = self._find_latest_thinking_row()
+        if row:
+            row.set_in_progress(in_progress)
 
     def _scroll_to_bottom(self):
         QTimer.singleShot(50, lambda: self.msg_scroll.verticalScrollBar().setValue(
             self.msg_scroll.verticalScrollBar().maximum()
         ))
+
+    def remove_thinking_placeholder(self):
+        """移除最后的占位消息（"思考中..."）。"""
+        if self.msg_layout.count() <= 1:
+            return
+        for i in range(self.msg_layout.count() - 2, -1, -1):
+            item = self.msg_layout.itemAt(i)
+            if item and item.widget() and isinstance(item.widget(), MessageRow):
+                widget = item.widget()
+                # 检查是否是 assistant 的占位消息
+                if widget.role == "assistant":
+                    text = widget._content_label.text()
+                    if "思考中" in text:
+                        self.msg_layout.removeWidget(widget)
+                        widget.deleteLater()
+                break
 
     def update_last_message(self, text):
         """更新最后一条消息（用于流式输出）。"""
@@ -1040,46 +1498,78 @@ class CenterPanel(QFrame):
                 )
                 break
 
+    def update_processing_status(self, text):
+        """更新处理中状态文案（不产生新气泡）。"""
+        if not text:
+            return
+        self.update_last_message(f"处理中：{text}")
+
+    def get_last_message_text(self):
+        """获取最后一条消息文本。"""
+        if self.msg_layout.count() <= 1:
+            return ""
+        for i in range(self.msg_layout.count() - 2, -1, -1):
+            item = self.msg_layout.itemAt(i)
+            if item and item.widget() and isinstance(item.widget(), MessageRow):
+                return item.widget().get_text()
+        return ""
+
 
 class RightPanel(QFrame):
     """右侧面板：项目文件树 + 文件变更。"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(280)
+        self.setFixedWidth(220)
+        self.setStyleSheet(f"""
+            RightPanel {{
+                background-color: {THEME['bg_secondary']};
+                border-left: 1px solid {THEME['border']};
+            }}
+        """)
         self._build()
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setSpacing(6)
 
         title = QLabel("项目文件")
-        title.setStyleSheet("font-weight: bold; font-size: 14px; padding: 4px 0;")
+        title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
         layout.addWidget(title)
 
         self.file_list = QListWidget()
-        self.file_list.setStyleSheet("""
-            QListWidget { border: 1px solid #ccc; border-radius: 6px; background-color: white; }
-            QListWidget::item { padding: 4px 8px; }
+        self.file_list.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {THEME['border']}; border-radius: 8px;
+                background-color: {THEME['bg_secondary']}; color: {THEME['text_secondary']};
+            }}
+            QListWidget::item {{ padding: 4px 8px; color: {THEME['text_secondary']}; }}
+            QListWidget::item:selected {{ background-color: {THEME['primary']}; color: white; }}
         """)
+        self.file_list.setPalette(QApplication.instance().palette())
         layout.addWidget(self.file_list)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background-color: #ddd;")
+        line.setStyleSheet(f"background-color: {THEME['border']};")
         layout.addWidget(line)
 
         change_title = QLabel("文件变更")
-        change_title.setStyleSheet("font-weight: bold; font-size: 14px; padding: 4px 0;")
+        change_title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
         layout.addWidget(change_title)
 
         self.change_list = QListWidget()
-        self.change_list.setStyleSheet("""
-            QListWidget { border: 1px solid #ccc; border-radius: 6px; background-color: white; }
-            QListWidget::item { padding: 4px 8px; }
+        self.change_list.setStyleSheet(f"""
+            QListWidget {{
+                border: 1px solid {THEME['border']}; border-radius: 8px;
+                background-color: {THEME['bg_secondary']}; color: {THEME['text_secondary']};
+            }}
+            QListWidget::item {{ padding: 4px 8px; color: {THEME['text_secondary']}; }}
         """)
-        self.change_list.addItem("暂无变更")
+        item = QListWidgetItem("暂无变更")
+        item.setForeground(QColor(THEME['text_tertiary']))
+        self.change_list.addItem(item)
         layout.addWidget(self.change_list)
 
 
@@ -1091,8 +1581,14 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Claude Code 桌面助手")
-        self.resize(1400, 800)
+        # 启动时最大化窗口
+        self.showMaximized()
         self.setMinimumSize(900, 500)
+
+        # 深色主题窗口背景
+        self.setStyleSheet(f"""
+            QMainWindow {{ background-color: {THEME['bg_primary']}; }}
+        """)
 
         self.claude_client = ClaudeClient()
         self.current_conv_id = None
@@ -1101,9 +1597,19 @@ class MainWindow(QMainWindow):
         self._is_first_send = False
         self._session_last_active = None  # session 最后活跃时间
         self._SESSION_TIMEOUT = 1800  # session 超时阈值（秒），30 分钟
+        self._last_thinking_segments = []  # 当前轮次思考分段
+        self._has_stream_text = False  # 当前轮次是否已收到正文流
+        self._permission_prompt_shown = False  # 当前轮次是否已弹出权限提示
+        self._hook_token = None
+        self._hook_server = None
+        self._hook_server_thread = None
+        self._pending_permission = None  # {event, done_event, decision}
+        self._stop_pending = False  # 用户主动停止标记
+        self._pending_new_conv_id = None  # 新建但未发送的对话 ID
 
         self._build()
         QTimer.singleShot(300, self._init_content)
+        self._start_permission_hook_server()
 
         # 后台 git 工作线程
         self._worker_thread = QThread()
@@ -1139,7 +1645,10 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.right_panel)
 
         # 信号绑定
-        self.center_panel.send_btn.clicked.connect(self._on_send)
+        self.center_panel.send_clicked.connect(self._on_send)
+        self.center_panel.stop_clicked.connect(self._on_stop)
+        self.center_panel.permission_accept_clicked.connect(self._on_permission_accept)
+        self.center_panel.permission_reject_clicked.connect(self._on_permission_reject)
         self.center_panel.input_box.keyPressEvent = self._input_key_press
         self.left_panel.new_btn.clicked.connect(self._new_conversation)
         self.left_panel.conv_list.itemClicked.connect(self._on_select_conversation)
@@ -1186,6 +1695,9 @@ class MainWindow(QMainWindow):
 
         self.current_conv_id = conv_id
         self._is_first_send = False
+        # 切换到其他对话，清除 pending 标记
+        if conv.get("title") != "新增对话":
+            self._pending_new_conv_id = None
         self.center_panel.clear_messages()
         self.center_panel.hide_landing()
 
@@ -1195,6 +1707,16 @@ class MainWindow(QMainWindow):
             if role == "system":
                 continue
             self.center_panel.add_message(role, text)
+            # 如果有 thinking 信息，在 AI 消息后面恢复思考块
+            if role == "assistant" and "thinking" in msg:
+                segments = msg.get("thinking_segments")
+                if segments and isinstance(segments, list):
+                    for seg in segments:
+                        self.center_panel.add_thinking_block(seg.get("text", ""), seg.get("duration_ms", 0), in_progress=False)
+                else:
+                    thinking_text = msg["thinking"]
+                    thinking_ms = msg.get("thinking_duration_ms", 0)
+                    self.center_panel.add_thinking_block(thinking_text, thinking_ms, in_progress=False)
 
         # 高亮左侧列表项
         for i in range(self.left_panel.conv_list.count()):
@@ -1304,13 +1826,15 @@ class MainWindow(QMainWindow):
 
         save_conversation(conv_id, conv.get("title", "新增对话"), messages)
 
-        # 更新按钮
-        self.center_panel.send_btn.setEnabled(False)
-        self.center_panel.send_btn.setText("思考中...")
+        # 更新按钮为停止模式
+        self.center_panel.set_building_response(True)
         self._building_response = True
 
-        # 添加 AI 占位消息
-        self.center_panel.add_message("assistant", "思考中...")
+        # 添加 AI 占位消息（带表情 + 动画）
+        self.center_panel.add_message("assistant", "🤔 思考中...")
+        self._last_thinking_segments = []
+        self._has_stream_text = False
+        self._permission_prompt_shown = False
 
         # 获取当前对话的 session_id（用于续接历史对话）
         session_id = conv.get("session_id") if conv else None
@@ -1320,17 +1844,26 @@ class MainWindow(QMainWindow):
         prompt = self.claude_client.build_prompt(messages)
         model_name = self.center_panel.model_combo.currentText()
         model = {"opus (最强)": "opus", "sonnet (推荐)": "sonnet", "haiku (最快)": "haiku"}.get(model_name, "sonnet")
+        perm_ui = self.center_panel.permission_combo.currentText()
+        permission_mode = "default"
+        if perm_ui.startswith("acceptEdits"):
+            permission_mode = "acceptEdits"
+        elif perm_ui.startswith("plan"):
+            permission_mode = "plan"
 
         # 创建 Claude 工作线程
         self._claude_thread = QThread()
-        self._claude_worker = ClaudeWorker(prompt, model, session_id=session_id)
+        self._claude_worker = ClaudeWorker(prompt, model, session_id=session_id, permission_mode=permission_mode)
         self._claude_worker.moveToThread(self._claude_thread)
         self._claude_worker.chunk_ready.connect(self._on_chunk)
         self._claude_worker.result_ready.connect(self._on_claude_result)
         self._claude_worker.session_ready.connect(self._on_session_ready)
         self._claude_worker.thinking_started.connect(self._on_thinking_started)
         self._claude_worker.thinking_ready.connect(self._on_thinking_ready)
+        self._claude_worker.status_update.connect(self._on_worker_status)
         self._claude_worker.error_occurred.connect(self._on_claude_error)
+        self._claude_worker.stopped.connect(self._on_worker_stopped)
+        self._claude_thread.finished.connect(self._on_claude_thread_done)
         self._claude_thread.started.connect(self._claude_worker.run)
         self._claude_thread.start()
 
@@ -1339,13 +1872,21 @@ class MainWindow(QMainWindow):
         self._pending_session_id = session_id
 
     def _on_thinking_started(self):
-        """Claude 开始思考（替换占位消息）。"""
-        # 将"思考中..."占位消息替换为思考块占位
-        pass  # 思考内容会在 thinking_ready 中完整回传
+        """Claude 开始思考。"""
+        self.center_panel.add_thinking_block("", 0, in_progress=True)
+        if not self._has_stream_text:
+            self.center_panel.update_processing_status("正在深度思考")
 
     def _on_thinking_ready(self, text, duration_ms):
-        """收到完整的思考内容，插入思考块。"""
-        self.center_panel.add_thinking_block(text, duration_ms)
+        """收到一段完整思考内容。"""
+        entry = {"text": text, "duration_ms": int(duration_ms or 0)}
+        self._last_thinking_segments.append(entry)
+        self.center_panel.add_thinking_block(text, duration_ms, in_progress=True)
+
+    def _on_worker_status(self, status_text):
+        """更新过程态状态，避免界面看起来无响应。"""
+        if not self._has_stream_text:
+            self.center_panel.update_processing_status(status_text)
 
     def _on_claude_result(self, result):
         """Claude 执行完成。"""
@@ -1373,42 +1914,235 @@ class MainWindow(QMainWindow):
                     print(f"[Session] 检测到 session 过期，已清空 session_id")
         self._handle_error(error_msg)
 
+    def _on_worker_stopped(self):
+        """ClaudeWorker 被用户主动终止——只退出线程，清理在 _on_claude_thread_done 统一处理。"""
+        print(f"[Stop] Worker 已停止，等待线程退出")
+        self._claude_thread.quit()
+
+    def _on_claude_thread_done(self):
+        """ClaudeWorker 线程已结束——统一清理入口。"""
+        if self._stop_pending:
+            # 用户主动终止，执行停止清理
+            self._stop_pending = False
+            print(f"[Stop] 执行停止清理")
+            self._on_stop_cleanup()
+        elif self._building_response:
+            # 非正常完成（非 result、非 error），也做停止清理
+            print(f"[Stop] 线程异常退出，执行清理")
+            self._on_stop_cleanup()
+
+    def _on_stop_cleanup(self):
+        """停止后的清理工作。"""
+        if not self._building_response:
+            return  # 已经清理过了
+        self._building_response = False
+        self._last_thinking_segments = []
+        self.center_panel.set_building_response(False)
+        self.center_panel.set_thinking_block_state(False)
+        # 移除最后的"思考中..."占位消息
+        self.center_panel.remove_thinking_placeholder()
+
     def _on_chunk(self, text):
         """收到 AI 的流式回复片段（主线程）。"""
+        self._has_stream_text = True
         self.center_panel.update_last_message(text)
+        if self._looks_like_permission_prompt(text):
+            self._show_permission_prompt(text)
 
     def _on_done(self, full_text):
         """AI 回复完成（子线程）。"""
         self._building_response = False
         self._finish_response(full_text)
 
+    @staticmethod
+    def _looks_like_permission_prompt(text):
+        if not text:
+            return False
+        candidates = [
+            "需要你的权限",
+            "请批准",
+            "批准这次编辑",
+            "approve",
+            "permission",
+        ]
+        lower_text = text.lower()
+        for c in candidates:
+            if c.lower() in lower_text:
+                return True
+        return False
+
+    def _show_permission_prompt(self, text):
+        """权限请求提示：内嵌到输入框上方（更自然）。"""
+        if self._permission_prompt_shown:
+            return
+        self._permission_prompt_shown = True
+        # 这是“文本级提示”兜底；真实权限由 PermissionRequest hook 触发并驱动 UI
+        self.center_panel.show_permission_request("需要权限继续（若系统未弹出审批条，请检查 hooks 是否启用）")
+
+    def _on_permission_accept(self):
+        """用户允许权限：如果是 hook 权限请求则回写决策；否则按文本级继续处理。"""
+        if self._pending_permission:
+            self._pending_permission["decision"] = {"behavior": "allow"}
+            print("[Permission] GUI allow")
+            self._pending_permission["done_event"].set()
+            self.center_panel.hide_permission_request()
+            return
+        self.center_panel.hide_permission_request()
+        # 让 AI “收到” 继续指令：直接作为用户消息发送
+        self.center_panel.input_box.setText("可以编辑，请继续")
+        self._on_send()
+
+    def _on_permission_reject(self):
+        """用户拒绝权限：如果是 hook 权限请求则回写拒绝；否则只隐藏提示。"""
+        if self._pending_permission:
+            self._pending_permission["decision"] = {"behavior": "deny", "message": "用户在 GUI 中拒绝了该操作", "interrupt": False}
+            print("[Permission] GUI deny")
+            self._pending_permission["done_event"].set()
+            self.center_panel.hide_permission_request()
+            return
+        self.center_panel.hide_permission_request()
+
+    def _start_permission_hook_server(self):
+        """启动本地 HTTP server，供 Claude Code PermissionRequest hook 回调。"""
+        try:
+            project_dir = os.path.dirname(os.path.abspath(__file__))
+            claude_dir = os.path.join(project_dir, ".claude")
+            os.makedirs(claude_dir, exist_ok=True)
+
+            token = secrets.token_hex(16)
+            self._hook_token = token
+
+            window = self
+
+            class Handler(BaseHTTPRequestHandler):
+                def _send_json(self, code, payload):
+                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                    self.send_response(code)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+                def do_POST(self):
+                    if self.path != "/permission":
+                        return self._send_json(404, {"error": "not_found"})
+                    auth = self.headers.get("X-CCVIEW-TOKEN", "")
+                    if not auth or auth != window._hook_token:
+                        return self._send_json(401, {"error": "unauthorized"})
+                    length = int(self.headers.get("Content-Length", "0") or "0")
+                    raw = self.rfile.read(length) if length > 0 else b"{}"
+                    try:
+                        event = json.loads(raw.decode("utf-8"))
+                    except Exception:
+                        return self._send_json(400, {"error": "bad_json"})
+
+                    done = threading.Event()
+                    pending = {"event": event, "done_event": done, "decision": None}
+                    window._pending_permission = pending
+                    print(f"[Permission] request tool={event.get('tool_name')} mode={event.get('permission_mode')}")
+
+                    tool_name = event.get("tool_name", "")
+                    tool_input = event.get("tool_input", {})
+                    summary = f"权限申请：{tool_name}"
+                    if tool_name == "Bash" and isinstance(tool_input, dict):
+                        cmd = tool_input.get("command", "")
+                        if cmd:
+                            summary = f"权限申请：运行命令\n{cmd}"
+                    elif tool_name in ("Write", "Edit") and isinstance(tool_input, dict):
+                        fp = tool_input.get("file_path", "") or tool_input.get("path", "")
+                        if fp:
+                            summary = f"权限申请：修改文件\n{fp}"
+
+                    # 通过 Qt 主线程更新 UI
+                    QTimer.singleShot(0, lambda: window.center_panel.show_permission_request(summary))
+
+                    # 阻塞等待用户点击（最长 10 分钟）
+                    if not done.wait(timeout=600):
+                        window._pending_permission = None
+                        QTimer.singleShot(0, lambda: window.center_panel.hide_permission_request())
+                        return self._send_json(200, {"behavior": "deny", "message": "权限请求超时未响应", "interrupt": False})
+
+                    decision = pending.get("decision") or {"behavior": "allow"}
+                    print(f"[Permission] respond {decision}")
+                    window._pending_permission = None
+                    QTimer.singleShot(0, lambda: window.center_panel.hide_permission_request())
+                    return self._send_json(200, decision)
+
+                def log_message(self, format, *args):
+                    return  # 静默
+
+            # 用动态端口
+            server = HTTPServer(("127.0.0.1", 0), Handler)
+            self._hook_server = server
+            port = server.server_address[1]
+
+            # 写出给 hook 读取
+            hook_info_path = os.path.join(claude_dir, "cc_view_hook.json")
+            with open(hook_info_path, "w", encoding="utf-8") as f:
+                json.dump({"port": port, "token": token}, f, ensure_ascii=False, indent=2)
+
+            def serve():
+                try:
+                    server.serve_forever()
+                except Exception:
+                    pass
+
+            th = threading.Thread(target=serve, daemon=True)
+            th.start()
+            self._hook_server_thread = th
+        except Exception as e:
+            print(f"[HookServer] 启动失败: {e}")
+
     def _finish_response(self, full_text):
         """在主线程完成回复处理。"""
-        self.center_panel.update_last_message(full_text)
+        self.center_panel.set_thinking_block_state(False)
+
+        # 多轮 tool_use 场景下，result 可能只含最后一段文本。
+        # 若流式阶段已显示更完整内容，优先保留更完整版本，避免被覆盖。
+        displayed_text = self.center_panel.get_last_message_text()
+        final_text = full_text or ""
+        if displayed_text and len(displayed_text.strip()) > len(final_text.strip()):
+            final_text = displayed_text
+
+        self.center_panel.update_last_message(final_text)
+        if self._looks_like_permission_prompt(final_text):
+            self._show_permission_prompt(final_text)
         self._session_last_active = datetime.now()  # 更新活跃时间
 
         if self.current_conv_id:
             conv = load_conversation(self.current_conv_id)
             if conv:
                 messages = conv.get("messages", [])
-                messages.append({"role": "assistant", "content": full_text})
+                # 保存 assistant 消息，带上 thinking 信息
+                assistant_msg = {"role": "assistant", "content": final_text}
+                if self._last_thinking_segments:
+                    thinking_text = "\n\n".join(
+                        f"[第{idx}段 | 用时 {seg.get('duration_ms', 0)}毫秒]\n{seg.get('text', '')}"
+                        for idx, seg in enumerate(self._last_thinking_segments, start=1)
+                    )
+                    thinking_ms = sum(max(0, int(seg.get("duration_ms", 0))) for seg in self._last_thinking_segments)
+                    assistant_msg["thinking"] = thinking_text
+                    assistant_msg["thinking_duration_ms"] = thinking_ms
+                    assistant_msg["thinking_segments"] = self._last_thinking_segments
+                    self._last_thinking_segments = []  # 消费后清空
+                messages.append(assistant_msg)
                 session_id = self._pending_session_id or conv.get("session_id")
 
                 if self._is_first_send:
                     # 首次发送：先保存规则生成的临时标题，再后台调用 AI 生成
-                    temp_title = self._generate_title(full_text)
+                    temp_title = self._generate_title(final_text)
                     save_conversation(self.current_conv_id, temp_title, messages, session_id)
                     self._is_first_send = False
+                    self._pending_new_conv_id = None  # 已发送，清除 pending
                     self._refresh_sidebar_preview()
                     # 后台 AI 生成标题（不阻塞 UI）
-                    self._start_ai_title_generation(full_text)
+                    self._start_ai_title_generation(final_text)
                 else:
                     save_conversation(self.current_conv_id, conv.get("title", "新增对话"), messages, session_id)
 
                 self._pending_session_id = None
 
-        self.center_panel.send_btn.setEnabled(True)
-        self.center_panel.send_btn.setText("发  送")
+        self.center_panel.set_building_response(False)
 
     def _generate_title(self, ai_text):
         """规则生成临时标题——优先用用户第一条消息的关键词。"""
@@ -1474,8 +2208,8 @@ class MainWindow(QMainWindow):
             if len(title) > 12:
                 title = title[:12] + "…"
             conv = load_conversation(self.current_conv_id)
-            if conv and conv.get("title", "新增对话") == "新增对话":
-                # 只在标题还是默认值时才替换
+            if conv:
+                # 用 AI 生成的标题替换当前标题（无论是否默认值）
                 save_conversation(self.current_conv_id, title, conv.get("messages", []), conv.get("session_id"))
                 self._refresh_sidebar_preview()
                 print(f"[Title] AI 生成标题: {title}")
@@ -1484,10 +2218,19 @@ class MainWindow(QMainWindow):
         """TitleWorker 线程完成——无论成功失败都到此。"""
         print(f"[Title] TitleWorker 线程完成")
 
+    def _on_stop(self):
+        """用户主动终止 AI 回复。"""
+        if not self._building_response or not hasattr(self, '_claude_worker'):
+            return
+        self._stop_pending = True
+        self._claude_worker.stop()
+        print(f"[Stop] 已终止 Claude 回复")
+
     def _handle_error(self, error_msg):
         self.center_panel.update_last_message(f"[出错] {error_msg}")
-        self.center_panel.send_btn.setEnabled(True)
-        self.center_panel.send_btn.setText("发  送")
+        self.center_panel.set_building_response(False)
+        self.center_panel.set_thinking_block_state(False)
+        self._last_thinking_segments = []
 
     def _check_session_timeout(self):
         """定时检查 session 是否超时。"""
@@ -1561,6 +2304,8 @@ class MainWindow(QMainWindow):
         if self.current_conv_id == conv_id:
             self.current_conv_id = None
             self._pending_session_id = None
+            if self._pending_new_conv_id == conv_id:
+                self._pending_new_conv_id = None
             # 尝试选中相邻对话
             convs = list_conversations()
             if convs:
@@ -1575,9 +2320,21 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "请等待当前对话完成")
             return
 
+        # 如果已有未发送的「新增对话」，直接跳转不新建
+        if self._pending_new_conv_id:
+            pending = load_conversation(self._pending_new_conv_id)
+            if pending and pending.get("title") == "新增对话":
+                self.current_conv_id = self._pending_new_conv_id
+                self.center_panel.hide_landing()
+                self.center_panel.clear_messages()
+                if not silent:
+                    self._refresh_sidebar_preview()
+                return
+
         conv_id = str(uuid.uuid4())[:8]
         title = "新增对话"
         save_conversation(conv_id, title, [], session_id=None)
+        self._pending_new_conv_id = conv_id
         self.current_conv_id = conv_id
         self._pending_session_id = None
         self._is_first_send = False
@@ -1600,18 +2357,18 @@ class MainWindow(QMainWindow):
 
     def _insert_hash(self):
         popup = PopupList("选择智能体", AGENT_LIST, self)
-        if popup.exec_() and popup.selected:
+        if popup.exec() and popup.selected:
             self.center_panel.input_box.insertPlainText(f" #{popup.selected} ")
 
     def _insert_bang(self):
         items = [(n, t) for n, t in PROMPT_TEMPLATES.items()]
         popup = PopupList("插入提示词模板", items, self)
-        if popup.exec_() and popup.selected:
+        if popup.exec() and popup.selected:
             self.center_panel.input_box.setText(popup.selected)
 
     def _insert_dollar(self):
         popup = PopupList("调用 Skills", SKILLS_LIST, self)
-        if popup.exec_() and popup.selected:
+        if popup.exec() and popup.selected:
             self.center_panel.input_box.insertPlainText(f" /{popup.selected} ")
 
     def _upload_image(self):
@@ -1622,6 +2379,12 @@ class MainWindow(QMainWindow):
             self.center_panel.add_message("user", f"[已上传图片: {os.path.basename(filepath)}]")
 
     def closeEvent(self, event):
+        # 停止本地权限 hook server
+        try:
+            if getattr(self, "_hook_server", None):
+                self._hook_server.shutdown()
+        except Exception:
+            pass
         # 终止 ClaudeWorker 子线程
         if hasattr(self, '_claude_thread') and self._claude_thread.isRunning():
             self._claude_thread.quit()
@@ -1649,6 +2412,44 @@ def main():
     icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "ico.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
+    # 全局深色滚动条样式
+    scrollbar_w = 8
+    scrollbar_c = THEME.get('border_focus', '#6366F1')
+    scrollbar_bg = THEME.get('bg_primary', '#0F0F14')
+    app.setStyleSheet(f"""
+        QScrollBar:vertical {{
+            background: {scrollbar_bg}; width: {scrollbar_w}px;
+            border-radius: 4px; margin: 0px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: #3D3D5C; border-radius: 4px;
+            min-height: 20px;
+        }}
+        QScrollBar::handle:vertical:hover {{
+            background: {scrollbar_c};
+        }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+        QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+            background: none; border: none;
+        }}
+        QScrollBar:horizontal {{
+            background: {scrollbar_bg}; height: {scrollbar_w}px;
+            border-radius: 4px; margin: 0px;
+        }}
+        QScrollBar::handle:horizontal {{
+            background: #3D3D5C; border-radius: 4px;
+            min-width: 20px;
+        }}
+        QScrollBar::handle:horizontal:hover {{
+            background: {scrollbar_c};
+        }}
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
+        QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal,
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+            background: none; border: none;
+        }}
+    """)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

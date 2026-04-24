@@ -7,7 +7,11 @@
       "WebSearch",
       "Bash(pkill -f \"python3 main.py\")",
       "Bash(python3 main.py)",
-      "Bash(echo \"PID: $!\")"
+      "Bash(echo \"PID: $!\")",
+      "Read(//private/tmp/**)",
+      "Bash(kill 28781)",
+      "Bash(ls -la \"/Users/wl/开发/My File/CC-view/\"*.png)",
+      "Bash(ls -la \"/Users/wl/开发/My File/CC-view/image/\"*.png)"
     ]
   },
   "hooks": {
@@ -17,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/permission_bridge.py"
+            "command": "/Users/wl/开发/My File/CC-view/.claude/hooks/permission_bridge.py"
           }
         ]
       }

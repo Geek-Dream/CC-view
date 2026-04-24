@@ -1,0 +1,5243 @@
+{
+  "id": "6734cceb",
+  "title": "新增对话",
+  "created_at": "2026-04-24T21:18:59.578749",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好呀？"
+    },
+    {
+      "role": "user",
+      "content": "你好呀？"
+    },
+    {
+      "role": "assistant",
+      "content": "你好呀！有什么我可以帮你的吗？😊",
+      "diff_data": [
+        {
+          "file": ".claude/cc_view_hook.json",
+          "additions": 2,
+          "deletions": 2,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 4,
+              "new_start": 1,
+              "new_count": 4,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"port\": 59637,"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"token\": \"ee86e65ae0311119eb2d18e49f67a13d\""
+                },
+                {
+                  "type": "added",
+                  "text": "  \"port\": 56613,"
+                },
+                {
+                  "type": "added",
+                  "text": "  \"token\": \"c7e9ecb2ddef8513da498645c77907f5\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": ".claude/hooks/permission_bridge.py",
+          "additions": 76,
+          "deletions": 17,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 13,
+              "new_start": 1,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "#!/usr/bin/env python3"
+                },
+                {
+                  "type": "added",
+                  "text": "\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "CC-view 权限桥接脚本：将 Claude Code 的 PermissionRequest 转发给运行中的 CC-view GUI。"
+                },
+                {
+                  "type": "added",
+                  "text": "\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import json"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import os"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import sys"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import urllib.request"
+                },
+                {
+                  "type": "added",
+                  "text": "import urllib.error"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "def _log(line: str):"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"始终写入固定调试路径。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    try:"
+                },
+                {
+                  "type": "added",
+                  "text": "        log_path = \"/tmp/permission_bridge_debug.log\""
+                },
+                {
+                  "type": "added",
+                  "text": "        with open(log_path, \"a\", encoding=\"utf-8\") as f:"
+                },
+                {
+                  "type": "added",
+                  "text": "            f.write(line.rstrip() + \"\\n\")"
+                },
+                {
+                  "type": "added",
+                  "text": "    except Exception:"
+                },
+                {
+                  "type": "added",
+                  "text": "        pass"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    # 同时尝试写入项目目录"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    try:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        log_path = os.path.join(_project_dir(), \".claude\", \"permission_bridge.log\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        os.makedirs(os.path.dirname(log_path), exist_ok=True)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        with open(log_path, \"a\", encoding=\"utf-8\") as f:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            f.write(line.rstrip() + \"\\n\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    except Exception:"
+                }
+              ]
+            },
+            {
+              "old_start": 22,
+              "old_count": 43,
+              "new_start": 36,
+              "new_count": 89,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "def _project_dir():"
+                },
+                {
+                  "type": "removed",
+                  "text": "    # Claude Code provides this env var for hooks"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    return os.environ.get(\"CLAUDE_PROJECT_DIR\") or os.getcwd()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "def _load_hook_info():"
+                },
+                {
+                  "type": "removed",
+                  "text": "    path = os.path.join(_project_dir(), \".claude\", \"cc_view_hook.json\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "    with open(path, \"r\", encoding=\"utf-8\") as f:"
+                },
+                {
+                  "type": "removed",
+                  "text": "        return json.load(f)"
+                },
+                {
+                  "type": "added",
+                  "text": "def _find_hook_info():"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"在多个可能的位置搜索 cc_view_hook.json。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    candidates = []"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    # 1. 当前项目目录（Claude Code 运行的目录）"
+                },
+                {
+                  "type": "added",
+                  "text": "    candidates.append(os.path.join(_project_dir(), \".claude\", \"cc_view_hook.json\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    # 2. 用户 home 目录下的 .claude（全局配置）"
+                },
+                {
+                  "type": "added",
+                  "text": "    home = os.path.expanduser(\"~\")"
+                },
+                {
+                  "type": "added",
+                  "text": "    candidates.append(os.path.join(home, \".claude\", \"cc_view_hook.json\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    # 3. CC-view 自身目录（脚本所在的 CC-view 项目）"
+                },
+                {
+                  "type": "added",
+                  "text": "    script_dir = os.path.dirname(os.path.abspath(__file__))"
+                },
+                {
+                  "type": "added",
+                  "text": "    cc_view_dir = script_dir"
+                },
+                {
+                  "type": "added",
+                  "text": "    # 如果脚本在 .claude/hooks/ 下，往上两级到 CC-view 目录"
+                },
+                {
+                  "type": "added",
+                  "text": "    if os.path.basename(cc_view_dir) == \"hooks\":"
+                },
+                {
+                  "type": "added",
+                  "text": "        cc_view_dir = os.path.dirname(os.path.dirname(cc_view_dir))"
+                },
+                {
+                  "type": "added",
+                  "text": "    candidates.append(os.path.join(cc_view_dir, \".claude\", \"cc_view_hook.json\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    # 4. 环境变量指定的目录"
+                },
+                {
+                  "type": "added",
+                  "text": "    env_dir = os.environ.get(\"CCVIEW_PROJECT_DIR\")"
+                },
+                {
+                  "type": "added",
+                  "text": "    if env_dir:"
+                },
+                {
+                  "type": "added",
+                  "text": "        candidates.append(os.path.join(env_dir, \".claude\", \"cc_view_hook.json\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    for path in candidates:"
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            if os.path.exists(path):"
+                },
+                {
+                  "type": "added",
+                  "text": "                with open(path, \"r\", encoding=\"utf-8\") as f:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    data = json.load(f)"
+                },
+                {
+                  "type": "added",
+                  "text": "                if \"port\" in data and \"token\" in data:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    _log(f\"[hook] found config at {path}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    return data"
+                },
+                {
+                  "type": "added",
+                  "text": "        except Exception as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "            _log(f\"[hook] failed to read {path}: {e}\")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    return None"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "def _post_permission(event, hook_info):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    url = f\"http://127.0.0.1:{hook_info['port']}/permission\""
+                },
+                {
+                  "type": "added",
+                  "text": "    _log(f\"[hook] posting to {url}\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    data = json.dumps(event, ensure_ascii=False).encode(\"utf-8\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    req = urllib.request.Request(url, data=data, method=\"POST\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    req.add_header(\"Content-Type\", \"application/json; charset=utf-8\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    req.add_header(\"X-CCVIEW-TOKEN\", hook_info[\"token\"])"
+                },
+                {
+                  "type": "removed",
+                  "text": "    with urllib.request.urlopen(req, timeout=600) as resp:"
+                },
+                {
+                  "type": "removed",
+                  "text": "        body = resp.read().decode(\"utf-8\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        return json.loads(body) if body.strip() else {}"
+                },
+                {
+                  "type": "added",
+                  "text": "    try:"
+                },
+                {
+                  "type": "added",
+                  "text": "        with urllib.request.urlopen(req, timeout=10) as resp:"
+                },
+                {
+                  "type": "added",
+                  "text": "            body = resp.read().decode(\"utf-8\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            return json.loads(body) if body.strip() else {}"
+                },
+                {
+                  "type": "added",
+                  "text": "    except urllib.error.HTTPError as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] HTTP error: {e.code} {e.reason}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        raise"
+                },
+                {
+                  "type": "added",
+                  "text": "    except urllib.error.URLError as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] URL error: {e.reason}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        raise"
+                },
+                {
+                  "type": "added",
+                  "text": "    except Exception as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] unexpected error: {type(e).__name__}: {e}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        raise"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "def main():"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    event = _read_stdin_json()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    _log(f\"[hook] event={event.get('hook_event_name')} tool={event.get('tool_name')}\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "    # 默认：不拦截（让 Claude Code 自己弹 TUI）"
+                },
+                {
+                  "type": "removed",
+                  "text": "    # 但当 cc-view GUI 正在运行且写出了 hook info 文件时，我们接管权限对话框。"
+                },
+                {
+                  "type": "removed",
+                  "text": "    try:"
+                },
+                {
+                  "type": "removed",
+                  "text": "        hook_info = _load_hook_info()"
+                },
+                {
+                  "type": "removed",
+                  "text": "    except Exception:"
+                },
+                {
+                  "type": "removed",
+                  "text": "        _log(\"[hook] no hook info; passthrough\")"
+                },
+                {
+                  "type": "added",
+                  "text": "    # 搜索 CC-view hook 配置"
+                },
+                {
+                  "type": "added",
+                  "text": "    hook_info = _find_hook_info()"
+                },
+                {
+                  "type": "added",
+                  "text": "    if not hook_info:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(\"[hook] no hook info found in any location; passthrough\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return 0"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    _log(f\"[hook] loaded hook info: port={hook_info.get('port')}, token_len={len(hook_info.get('token', ''))}\")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    try:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        decision = _post_permission(event, hook_info)"
+                },
+                {
+                  "type": "removed",
+                  "text": "    except Exception:"
+                },
+                {
+                  "type": "removed",
+                  "text": "        _log(\"[hook] post failed; passthrough\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] post success: decision={decision}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "    except urllib.error.URLError as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] connection failed: {e}; passthrough\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        return 0"
+                },
+                {
+                  "type": "added",
+                  "text": "    except Exception as e:"
+                },
+                {
+                  "type": "added",
+                  "text": "        _log(f\"[hook] post failed: {e}; passthrough\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return 0"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    behavior = decision.get(\"behavior\")"
+                }
+              ]
+            },
+            {
+              "old_start": 79,
+              "old_count": 4,
+              "new_start": 139,
+              "new_count": 3,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "if __name__ == \"__main__\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    raise SystemExit(main())"
+                },
+                {
+                  "type": "removed",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": ".claude/permission_bridge.log",
+          "additions": 0,
+          "deletions": 34,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 34,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] event=PermissionRequest tool=Bash"
+                },
+                {
+                  "type": "removed",
+                  "text": "[hook] post failed; passthrough"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": ".claude/settings.local.json",
+          "additions": 7,
+          "deletions": 3,
+          "hunks": [
+            {
+              "old_start": 7,
+              "old_count": 7,
+              "new_start": 7,
+              "new_count": 11,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "      \"WebSearch\","
+                },
+                {
+                  "type": "unchanged",
+                  "text": "      \"Bash(pkill -f \\\"python3 main.py\\\")\","
+                },
+                {
+                  "type": "unchanged",
+                  "text": "      \"Bash(python3 main.py)\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"Bash(echo \\\"PID: $!\\\")\""
+                },
+                {
+                  "type": "added",
+                  "text": "      \"Bash(echo \\\"PID: $!\\\")\","
+                },
+                {
+                  "type": "added",
+                  "text": "      \"Read(//private/tmp/**)\","
+                },
+                {
+                  "type": "added",
+                  "text": "      \"Bash(kill 28781)\","
+                },
+                {
+                  "type": "added",
+                  "text": "      \"Bash(ls -la \\\"/Users/wl/开发/My File/CC-view/\\\"*.png)\","
+                },
+                {
+                  "type": "added",
+                  "text": "      \"Bash(ls -la \\\"/Users/wl/开发/My File/CC-view/image/\\\"*.png)\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    ]"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "  },"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "  \"hooks\": {"
+                }
+              ]
+            },
+            {
+              "old_start": 17,
+              "old_count": 10,
+              "new_start": 21,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        \"hooks\": ["
+                },
+                {
+                  "type": "unchanged",
+                  "text": "          {"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"type\": \"command\","
+                },
+                {
+                  "type": "removed",
+                  "text": "            \"command\": \"\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/permission_bridge.py\""
+                },
+                {
+                  "type": "added",
+                  "text": "            \"command\": \"/Users/wl/开发/My File/CC-view/.claude/hooks/permission_bridge.py\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "          }"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        ]"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "      }"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    ]"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "  }"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                },
+                {
+                  "type": "added",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/00d4b53e.json",
+          "additions": 0,
+          "deletions": 31,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 31,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"00d4b53e\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"你推荐几个code pl…\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-22T15:16:28.333436\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": ["
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"你推荐几个code plan吧\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"assistant\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"这是一个基于 PyQt6 的 Claude Code 桌面助手，已经有三栏布局、对话持久化、流式输出、思考块、着陆页动画、Git 集成等功能。\\n\\n以下是我推荐的几个开发方向（code plan）：\\n\\n---\\n\\n### Plan 1: **Markdown 渲染支持**\\n当前 AI 回复是纯文本显示，不支持 Markdown 格式（代码块高亮、列表、表格等）。\\n- 引入 `markdown` 库或 `QTextDocument` 渲染\\n- 代码块使用等宽字体 + 语法高亮（可用 `pygments`）\\n- 支持代码块复制按钮\\n\\n### Plan 2: **多轮对话续接优化**\\n当前 `build_prompt` 只取最后一条用户消息，依赖 Claude CLI 的 session 持久化。但 session 有 30 分钟超时和数量限制。\\n- 实现本地上下文构建：将历史对话按格式拼装进 prompt\\n- 支持上下文窗口管理（自动截断过长历史）\\n- 增加\\\"新会话\\\"和\\\"续接\\\"的明确切换\\n\\n### Plan 3: **深色主题 / 主题切换**\\n当前只有浅色主题，增加深色模式可大幅提升夜间使用体验。\\n- 定义 QSS 主题变量（亮色/暗色两套）\\n- 添加主题切换按钮\\n- 主题偏好持久化（`QSettings`）\\n\\n### Plan 4: **文件搜索与快速跳转**\\n右侧面板目前是简单的 `git ls-files` 列表，缺乏实用性。\\n- 添加搜索框，支持模糊匹配过滤文件\\n- 点击文件可在内置编辑器/外部编辑器中打开\\n- 显示文件变更 diff（调用 `git diff`）\\n\\n### Plan 5: **对话导出与分享**\\n- 支持导出对话为 Markdown/PDF/HTML 格式\\n- 支持一键复制整段对话\\n- 对话搜索功能（跨所有历史对话搜索关键词）\\n\\n### Plan 6: **快捷键系统**\\n- `Ctrl/Cmd + N` 新建对话\\n- `Ctrl/Cmd + Enter` 发送\\n- `Ctrl/Cmd + L` 清空输入\\n- `Ctrl/Cmd + F` 搜索当前对话\\n- `Esc` 停止 AI 回复\\n\\n---\\n\\n你对哪个方向感兴趣？或者告诉我你的具体想法，我来帮你设计详细的实现方案。\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking\": \"Now I have a good understanding of the project. It's a PyQt6 desktop application that wraps Claude Code CLI. Let me recommend some code plans based on the current state of the project.\\n\\nThe project features:\\n- Three-panel layout (left: conversations, center: chat, right: file tree)\\n- Conversation persistence\\n- Streaming AI responses\\n- Thinking blocks (Claude's extended thinking)\\n- Landing page with animations\\n- Git integration (file tree and changes)\\n- AI-generated titles\\n- Agent mode support\\n- Skills support\\n- Prompt templates\\n\\nLet me suggest several meaningful improvement plans.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_duration_ms\": 2347"
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"我觉得好看排第一个，你可以先以好看为基准，现在页面太丑了，不够好看，我希望那种高级感，动画很多的那种，看起来高级，就像前端里面的GSAP，一样。python可以实现么？如果可以列一code plan\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"assistant\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"计划已写好，下面是核心要点：\\n\\n---\\n\\n## 视觉大改版 — 12 步 Code Plan\\n\\n### 核心理念\\n**深色主题优先 + 大量微交互动画 + GSAP 级缓动曲线**\\n\\n### 关键动画效果\\n\\n| 效果 | 对标 GSAP | PyQt6 实现 |\\n|------|-----------|-----------|\\n| 面板依次滑入 | `staggerFrom` | `QPropertyAnimation` + `QTimer` 延迟 |\\n| 消息气泡弹入 | `scale + overshoot` | `QGraphicsScale` + `OutBack` 缓动 |\\n| 着陆页粒子浮动 | `floating animation` | `paintEvent` + `QTimer` |\\n| 标题逐字入场 | `SplitText stagger` | 逐字符 `opacity` 动画 |\\n| 按钮涟漪点击 | Material Ripple | `mousePressEvent` + 圆形扩散 |\\n| 思考块展开折叠 | `height transition` | `maximumHeight` 平滑动画 |\\n| 弹窗缩放出现 | `scale from center` | `OutBack` 弹跳感 |\\n| 启动闪屏 | 品牌 loading | logo 淡入→窗口缩放出现 |\\n\\n### 设计令牌\\n- 深空黑 `#0F0F14` 主背景 + 紫蓝渐变 `#6366F1` 主题色\\n- 全局圆角 `12px`、卡片阴影、毛玻璃风格按钮\\n\\n### 实施顺序\\n着陆页 → 消息区 → 面板入场 → 侧边栏 → 按钮微动画 → 弹窗 → 骨架屏 → 启动动画\\n\\n---\\n\\n**你想直接开始实施吗？** 我建议先从着陆页（Step 6）+ 主题系统（Step 1）入手，因为这是用户打开 App 看到的第一印象，改完后整体感觉就出来了。\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking\": \"The user wants me to present the plan. Let me summarize it.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_duration_ms\": 9"
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"先看/Users/wl/开发/My File/cc-view-file/开发须知.md， 然后更新你的规划到指定文档中去\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    }"
+                },
+                {
+                  "type": "removed",
+                  "text": "  ]"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/7163c0c1.json",
+          "additions": 0,
+          "deletions": 6,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 6,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"7163c0c1\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"新增对话\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-22T18:13:18.664330\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": []"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/f69d97ce.json",
+          "additions": 0,
+          "deletions": 92,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 92,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"f69d97ce\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"推荐几3个skills，…\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-22T17:46:52.966845\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": ["
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"推荐几3个skills，并且记录当前文件夹吧，记录叫做skills.md 文件夹\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"assistant\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"我来先看看当前文件夹的结构，然后为你推荐合适的 skills。\\n\\n这是一个 **Claude Code 桌面助手** 项目，基于 PyQt6 构建，支持跨平台。代码量很大（2000+ 行），涉及聊天界面、Git 集成、权限钩子服务器等功能。\\n\\n根据你的项目特点，推荐以下 3 个 skills：\\n\\n1. **simplify** — 代码审查与优化：项目 2000+ 行单文件，可用此技能定期审查代码质量、发现冗余逻辑\\n2. **security-review** — 安全审查：项目内建了本地 HTTP 权限钩子服务器（`PermissionRequest hook`），涉及端口通信和 token 验证，安全审查很有价值\\n3. **init** — 生成 CLAUDE.md 文档：项目目前缺少代码文档，用此技能可以生成结构化的项目说明，方便未来上下文理解\\n\\n现在创建 `skills.md` 文件。\\n\\n需要你的权限来创建 `skil\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking\": \"[第1段 | 用时 1803毫秒]\\nThe user wants me to:\\n1. Recommend 3 skills\\n2. Record the current folder\\n3. Save it as skills.md\\n\\nLet me understand what they're asking. They want me to recommend 3 skills from the available ones, and create a file called skills.md that documents the current folder and the recommended skills.\\n\\nLet me first check what skills are available and what the current folder contains.\\n\\n[第2段 | 用时 4749毫秒]\\nThis is a Claude Code Desktop Assistant project built with PyQt6. Let me understand the project structure and recommend relevant skills.\\n\\nThe project is a desktop GUI application for Claude Code, featuring:\\n- Chat interface with message bubbles\\n- Conversation history management\\n- Git integration\\n- Multiple model selection\\n- Agent mode\\n- Skills selection\\n- Permission handling via local HTTP server\\n- Thinking blocks display\\n\\nLet me recommend 3 skills that would be most useful for this project, and create a skills.md file.\\n\\nLooking at the available skills:\\n1. **commit** - For creating git commits (useful for this code project)\\n\\n\\n2. **review-pr** - For reviewing pull requests (useful for code review)\\n3. **simplify** - For code quality review and optimization (very useful for this large codebase)\\n4. **security-review** - Security review (useful for the HTTP server and permission handling)\\n5. **init** - Initialize CLAUDE.md documentation\\n6. **insights** - Generate session analysis reports\\n7. **loop** - Recurring tasks\\n\\nFor this PyQt6 desktop app project, the most useful skills would be simplify for managing this substantial codebase, commit for streamlining the workflow, and security-review given the HTTP server and permission handling components.\\n\\n[第3段 | 用时 146毫秒]\\nLet me check if the skills.md file already exists.\\n\\n[第4段 | 用时 182毫秒]\\nThe user needs to approve the file write. Let me ask them.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_duration_ms\": 6880,"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_segments\": ["
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user wants me to:\\n1. Recommend 3 skills\\n2. Record the current folder\\n3. Save it as skills.md\\n\\nLet me understand what they're asking. They want me to recommend 3 skills from the available ones, and create a file called skills.md that documents the current folder and the recommended skills.\\n\\nLet me first check what skills are available and what the current folder contains.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 1803"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"This is a Claude Code Desktop Assistant project built with PyQt6. Let me understand the project structure and recommend relevant skills.\\n\\nThe project is a desktop GUI application for Claude Code, featuring:\\n- Chat interface with message bubbles\\n- Conversation history management\\n- Git integration\\n- Multiple model selection\\n- Agent mode\\n- Skills selection\\n- Permission handling via local HTTP server\\n- Thinking blocks display\\n\\nLet me recommend 3 skills that would be most useful for this project, and create a skills.md file.\\n\\nLooking at the available skills:\\n1. **commit** - For creating git commits (useful for this code project)\\n\\n\\n2. **review-pr** - For reviewing pull requests (useful for code review)\\n3. **simplify** - For code quality review and optimization (very useful for this large codebase)\\n4. **security-review** - Security review (useful for the HTTP server and permission handling)\\n5. **init** - Initialize CLAUDE.md documentation\\n6. **insights** - Generate session analysis reports\\n7. **loop** - Recurring tasks\\n\\nFor this PyQt6 desktop app project, the most useful skills would be simplify for managing this substantial codebase, commit for streamlining the workflow, and security-review given the HTTP server and permission handling components.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 4749"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"Let me check if the skills.md file already exists.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 146"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user needs to approve the file write. Let me ask them.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 182"
+                },
+                {
+                  "type": "removed",
+                  "text": "        }"
+                },
+                {
+                  "type": "removed",
+                  "text": "      ]"
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"可以编辑，请继续\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"assistant\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"权限请求还在等待中，请批准写入文件，然后我会继续创建 `skills.md`。\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking\": \"[第1段 | 用时 409毫秒]\\nThe user approved the permission to create the file. Let me write it now.\\n\\n\\n[第2段 | 用时 662毫秒]\\nThe user said \\\"可以编辑，请继续\\\" which means they want me to proceed with editing. But the permission hasn't been granted yet. Let me wait for the permission or try again.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_duration_ms\": 1071,"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_segments\": ["
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user approved the permission to create the file. Let me write it now.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 409"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user said \\\"可以编辑，请继续\\\" which means they want me to proceed with editing. But the permission hasn't been granted yet. Let me wait for the permission or try again.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 662"
+                },
+                {
+                  "type": "removed",
+                  "text": "        }"
+                },
+                {
+                  "type": "removed",
+                  "text": "      ]"
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"user\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"可以编辑，请继续\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    },"
+                },
+                {
+                  "type": "removed",
+                  "text": "    {"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"role\": \"assistant\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"content\": \"看起来权限一直未被批准。让我用 Bash 命令来创建文件试试。\\n\\n看起来写入被安全限制阻止了。让我再次尝试 Write 工具。\\n\\n文件写入的权限弹窗需要你在终端或界面上**点击\\\"Allow\\\"按钮**来批准。你发送的\\\"可以编辑\\\"只是文字回复，\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking\": \"[第1段 | 用时 1043毫秒]\\nThe user is saying \\\"可以编辑，请继续\\\" (you can edit, please continue). This seems like they're giving permission, but the tool call shows it hasn't been granted yet. Let me try the write again.\\n\\n\\n[第2段 | 用时 638毫秒]\\nThe user keeps saying \\\"可以编辑，请继续\\\" but the permission still isn't being granted. Let me try a different approach - maybe I can use a different method to create the file.\\n\\n[第3段 | 用时 689毫秒]\\nIt seems the bash command also has an issue with backslash-escaped whitespace. Let me try without the backslash escape since the working directory should handle this.\\n\\n[第4段 | 用时 856毫秒]\\nThe tool is saying it's blocked because of security restrictions, but the directory is exactly the allowed working directory. This might be an issue with the path encoding. Let me try a simpler approach using the current directory.\\n\\n[第5段 | 用时 1116毫秒]\\nThere seems to be a security restriction that's blocking writes. The path is exactly the allowed directory, so this might be a path resolution issue. Let me try a different approach - maybe I need to explicitly use the Write tool which should have the proper permissions context.\\n\\nLet me try the Write tool one more time.\\n\\n[第6段 | 用时 785毫秒]\\nThe permission keeps not being granted. This is a permission UI issue - the user is saying \\\"可以编辑，请继续\\\" but the actual permission button isn't being clicked. Let me inform the user about this.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_duration_ms\": 5127,"
+                },
+                {
+                  "type": "removed",
+                  "text": "      \"thinking_segments\": ["
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user is saying \\\"可以编辑，请继续\\\" (you can edit, please continue). This seems like they're giving permission, but the tool call shows it hasn't been granted yet. Let me try the write again.\\n\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 1043"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The user keeps saying \\\"可以编辑，请继续\\\" but the permission still isn't being granted. Let me try a different approach - maybe I can use a different method to create the file.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 638"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"It seems the bash command also has an issue with backslash-escaped whitespace. Let me try without the backslash escape since the working directory should handle this.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 689"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The tool is saying it's blocked because of security restrictions, but the directory is exactly the allowed working directory. This might be an issue with the path encoding. Let me try a simpler approach using the current directory.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 856"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"There seems to be a security restriction that's blocking writes. The path is exactly the allowed directory, so this might be a path resolution issue. Let me try a different approach - maybe I need to explicitly use the Write tool which should have the proper permissions context.\\n\\nLet me try the Write tool one more time.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 1116"
+                },
+                {
+                  "type": "removed",
+                  "text": "        },"
+                },
+                {
+                  "type": "removed",
+                  "text": "        {"
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"text\": \"The permission keeps not being granted. This is a permission UI issue - the user is saying \\\"可以编辑，请继续\\\" but the actual permission button isn't being clicked. Let me inform the user about this.\","
+                },
+                {
+                  "type": "removed",
+                  "text": "          \"duration_ms\": 785"
+                },
+                {
+                  "type": "removed",
+                  "text": "        }"
+                },
+                {
+                  "type": "removed",
+                  "text": "      ]"
+                },
+                {
+                  "type": "removed",
+                  "text": "    }"
+                },
+                {
+                  "type": "removed",
+                  "text": "  ],"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"session_id\": \"71e6c59b-85b5-4712-b470-c9b33656f1ff\""
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "main.py",
+          "additions": 585,
+          "deletions": 28,
+          "hunks": [
+            {
+              "old_start": 5,
+              "old_count": 10,
+              "new_start": 5,
+              "new_count": 22,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "import json"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import uuid"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import subprocess"
+                },
+                {
+                  "type": "added",
+                  "text": "import random"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "from datetime import datetime"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "import threading"
+                },
+                {
+                  "type": "removed",
+                  "text": "import secrets"
+                },
+                {
+                  "type": "removed",
+                  "text": "from http.server import BaseHTTPRequestHandler, HTTPServer"
+                },
+                {
+                  "type": "added",
+                  "text": "import anyio"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "from claude_agent_sdk import ("
+                },
+                {
+                  "type": "added",
+                  "text": "    ClaudeSDKClient, ClaudeAgentOptions,"
+                },
+                {
+                  "type": "added",
+                  "text": "    PermissionResultAllow, PermissionResultDeny,"
+                },
+                {
+                  "type": "added",
+                  "text": "    SystemMessage, AssistantMessage, ResultMessage, StreamEvent,"
+                },
+                {
+                  "type": "added",
+                  "text": "    TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,"
+                },
+                {
+                  "type": "added",
+                  "text": ")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "try:"
+                },
+                {
+                  "type": "added",
+                  "text": "    import mistune"
+                },
+                {
+                  "type": "added",
+                  "text": "except ImportError:"
+                },
+                {
+                  "type": "added",
+                  "text": "    mistune = None"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "from PyQt6.QtWidgets import ("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,"
+                }
+              ]
+            },
+            {
+              "old_start": 16,
+              "old_count": 8,
+              "new_start": 28,
+              "new_count": 8,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    QListWidget, QListWidgetItem, QScrollArea, QFrame,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    QDialog, QFileDialog, QMessageBox, QSizePolicy, QMenu,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ")"
+                },
+                {
+                  "type": "removed",
+                  "text": "from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QRect, QPoint"
+                },
+                {
+                  "type": "removed",
+                  "text": "from PyQt6.QtGui import QFont, QColor, QIcon"
+                },
+                {
+                  "type": "added",
+                  "text": "from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QPoint, QRect, QMetaObject, Qt as Qt_Type"
+                },
+                {
+                  "type": "added",
+                  "text": "from PyQt6.QtGui import QFont, QColor, QIcon, QPalette, QPainter, QTextOption"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "from claude_client import ClaudeClient"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                }
+              ]
+            },
+            {
+              "old_start": 26,
+              "old_count": 37,
+              "new_start": 38,
+              "new_count": 530,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), \"data\", \"conversations\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "os.makedirs(DATA_DIR, exist_ok=True)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "# ==================== 深色主题令牌 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": "# ==================== 主题系统 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 深色主题（参考 Gemini/ChatGPT/Claude 暖灰风格）"
+                },
+                {
+                  "type": "added",
+                  "text": "DARK_THEME = {"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_primary\": \"#212121\",     # 暖灰 主背景/消息区（参考 ChatGPT/千问）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_secondary\": \"#1A1A1A\",   # 深灰 侧边栏背景（比主背景略深，形成层次）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_card\": \"#2A2A2A\",        # 卡片/气泡背景（比主背景略亮）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_input\": \"#2A2A2A\",       # 输入框背景（同卡片，区分于消息区）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"border\": \"#333333\",         # 淡灰边框（暖色调）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"border_focus\": \"#818CF8\",   # 紫蓝聚焦边框"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"primary\": \"#818CF8\",        # 紫蓝主题色（参考千问/Claude）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"primary_hover\": \"#A5B4FC\",  # 悬停色"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"red\": \"#EF4444\",            # 停止/错误"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"red_hover\": \"#DC2626\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"green\": \"#34D399\",          # 翠绿（提高对比度）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"green_hover\": \"#10B981\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"orange\": \"#FBBF24\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"purple\": \"#A78BFA\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"teal\": \"#5EEAD4\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_primary\": \"#EAEAEA\",   # 亮灰主文字（接近白色，高对比）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_secondary\": \"#A0A0A0\", # 中灰次要文字"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_tertiary\": \"#666666\",  # 弱提示"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_bubble\": \"#2A2A2A\",    # 用户气泡（同卡片）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_bubble_gradient_end\": \"#1A3A2A\",  # 用户气泡渐变结束色（深绿）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_text\": \"#EAEAEA\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_bubble\": \"#2A2A2A\",      # AI 气泡（同卡片）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_text\": \"#EAEAEA\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"system_bubble\": \"#3A2A1A\",  # 系统气泡（暖棕色调）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"system_text\": \"#FBBF24\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"thinking_bg\": \"#1E1E1E\",    # 思考块背景（比主背景略深）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"thinking_border\": \"#333333\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_track\": \"#333333\",   # Switch轨道"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_thumb\": \"#818CF8\",   # Switch按钮"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_thumb_disabled\": \"#555555\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"shadow\": \"rgba(0, 0, 0, 0.4)\", # 阴影色"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"gradient_start\": \"#818CF8\", # 渐变起始"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"gradient_end\": \"#A78BFA\",   # 渐变结束"
+                },
+                {
+                  "type": "added",
+                  "text": "}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "THEME = {"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"bg_primary\": \"#0F0F14\",    # 深空黑 主背景"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"bg_secondary\": \"#1A1A2E\",  # 侧边栏背景"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"bg_card\": \"#25253D\",       # 卡片背景"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"bg_input\": \"#1E1E35\",      # 输入框背景"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"border\": \"#2D2D4A\",        # 边框色"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"border_focus\": \"#6366F1\",  # 聚焦边框"
+                },
+                {
+                  "type": "added",
+                  "text": "# 浅色主题（现代化高级设计）"
+                },
+                {
+                  "type": "added",
+                  "text": "LIGHT_THEME = {"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_primary\": \"#FAFBFC\",    # 极浅灰 主背景"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_secondary\": \"#FFFFFF\",  # 纯白 侧边栏背景"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_card\": \"#FFFFFF\",       # 纯白 卡片背景"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"bg_input\": \"#F8FAFC\",      # 输入框背景"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"border\": \"#E5E7EB\",        # 淡边框色"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"border_focus\": \"#6366F1\",  # 紫蓝聚焦边框"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"primary\": \"#6366F1\",       # 紫蓝主题色"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"primary_hover\": \"#818CF8\", # 悬停色"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"red\": \"#EF4444\",           # 停止/错误"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"red_hover\": \"#DC2626\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"green\": \"#22C55E\",         # 成功"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"green_hover\": \"#16A34A\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"orange\": \"#F97316\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"purple\": \"#A855F7\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"teal\": \"#0D9488\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"text_primary\": \"#E2E8F0\",  # 主文字"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"text_secondary\": \"#94A3B8\",# 次要文字"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"text_tertiary\": \"#64748B\", # 弱提示"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"user_bubble\": \"#1E3A2F\",   # 用户气泡"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"user_text\": \"#6EE7B7\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"ai_bubble\": \"#25253D\",     # AI 气泡"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"ai_text\": \"#E2E8F0\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"system_bubble\": \"#1E293B\", # 系统气泡"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"system_text\": \"#93C5FD\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"thinking_bg\": \"#1A1A2E\",   # 思考块背景"
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"thinking_border\": \"#2D2D4A\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"green\": \"#10B981\",         # 翠绿成功"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"green_hover\": \"#059669\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"orange\": \"#F59E0B\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"purple\": \"#8B5CF6\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"teal\": \"#14B8A6\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_primary\": \"#111827\",  # 深灰主文字"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_secondary\": \"#6B7280\",# 中灰次要文字"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"text_tertiary\": \"#9CA3AF\", # 浅灰弱提示"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_bubble\": \"#EEF2FF\",   # 淡紫用户气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_bubble_gradient_end\": \"#C7D2FE\",  # 用户气泡渐变结束色（浅紫）"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"user_text\": \"#4338CA\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_bubble\": \"#F9FAFB\",     # 极浅灰 AI 气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_text\": \"#111827\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"system_bubble\": \"#FEF3C7\", # 系统气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"system_text\": \"#92400E\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"thinking_bg\": \"#F3F4F6\",   # 思考块背景"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"thinking_border\": \"#D1D5DB\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_track\": \"#D1D5DB\",   # Switch轨道"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_thumb\": \"#6366F1\",   # Switch按钮"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"switch_thumb_disabled\": \"#9CA3AF\","
+                },
+                {
+                  "type": "added",
+                  "text": "    \"shadow\": \"rgba(0, 0, 0, 0.05)\", # 阴影色"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"gradient_start\": \"#6366F1\", # 渐变起始"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"gradient_end\": \"#8B5CF6\",   # 渐变结束"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# ==================== 主题管理器 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "class ThemeManager(QObject):"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"主题管理器 - 负责主题切换和配色管理\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    theme_changed = pyqtSignal(str)  # 主题变更信号"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def __init__(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        super().__init__()"
+                },
+                {
+                  "type": "added",
+                  "text": "        # 默认浅色主题"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.current_theme = \"light\""
+                },
+                {
+                  "type": "added",
+                  "text": "        self.themes = {"
+                },
+                {
+                  "type": "added",
+                  "text": "            \"dark\": DARK_THEME,"
+                },
+                {
+                  "type": "added",
+                  "text": "            \"light\": LIGHT_THEME"
+                },
+                {
+                  "type": "added",
+                  "text": "        }"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def get_current_theme(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"获取当前主题配色\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        return self.themes[self.current_theme]"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def switch_theme(self, theme_name=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"切换主题\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        if theme_name is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 自动切换到另一个主题"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.current_theme = \"dark\" if self.current_theme == \"light\" else \"light\""
+                },
+                {
+                  "type": "added",
+                  "text": "        else:"
+                },
+                {
+                  "type": "added",
+                  "text": "            if theme_name in self.themes:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.current_theme = theme_name"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 更新全局THEME变量（兼容性）"
+                },
+                {
+                  "type": "added",
+                  "text": "        global THEME"
+                },
+                {
+                  "type": "added",
+                  "text": "        THEME = self.get_current_theme()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 发射主题变更信号"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.theme_changed.emit(self.current_theme)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return self.current_theme"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def get_color(self, color_name):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"获取当前主题的指定颜色\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        return self.get_current_theme().get(color_name, \"#000000\")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 全局主题管理器实例"
+                },
+                {
+                  "type": "added",
+                  "text": "theme_manager = ThemeManager()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 临时兼容性：为现有代码提供THEME变量"
+                },
+                {
+                  "type": "added",
+                  "text": "THEME = theme_manager.get_current_theme()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# ==================== 高级动画系统 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "class AnimationManager(QObject):"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"高级动画管理器 - 实现GSAP级别的动画效果\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    animation_completed = pyqtSignal()"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def __init__(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        super().__init__()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations = []"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.easing_curves = {"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease': QEasingCurve.Type.OutQuad,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-in': QEasingCurve.Type.InQuad,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-out': QEasingCurve.Type.OutQuad,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-in-out': QEasingCurve.Type.InOutQuad,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-back': QEasingCurve.Type.OutBack,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-elastic': QEasingCurve.Type.OutElastic,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'ease-bounce': QEasingCurve.Type.OutBounce,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power2-in': QEasingCurve.Type.InCubic,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power2-out': QEasingCurve.Type.OutCubic,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power2-in-out': QEasingCurve.Type.InOutCubic,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power3-in': QEasingCurve.Type.InQuart,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power3-out': QEasingCurve.Type.OutQuart,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power3-in-out': QEasingCurve.Type.InOutQuart,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power4-in': QEasingCurve.Type.InQuint,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power4-out': QEasingCurve.Type.OutQuint,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'power4-in-out': QEasingCurve.Type.InOutQuint,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'sine': QEasingCurve.Type.OutSine,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'circ': QEasingCurve.Type.OutCirc,"
+                },
+                {
+                  "type": "added",
+                  "text": "            'expo': QEasingCurve.Type.OutExpo,"
+                },
+                {
+                  "type": "added",
+                  "text": "        }"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def fade_in(self, widget, duration=300, easing='ease', callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"淡入动画 — 使用 QTimer 步进，不使用 QGraphicsEffect。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        if not widget.isVisible():"
+                },
+                {
+                  "type": "added",
+                  "text": "            widget.show()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._step_opacity(widget, duration, 0.0, 1.0, callback)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _step_opacity(self, widget, duration, start_val, end_val, callback):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"用 QTimer 步进改变 setWindowOpacity。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        steps = 16"
+                },
+                {
+                  "type": "added",
+                  "text": "        interval = max(16, duration // steps)"
+                },
+                {
+                  "type": "added",
+                  "text": "        step_val = (end_val - start_val) / steps"
+                },
+                {
+                  "type": "added",
+                  "text": "        current = [0]"
+                },
+                {
+                  "type": "added",
+                  "text": "        widget.setWindowOpacity(start_val)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        def tick():"
+                },
+                {
+                  "type": "added",
+                  "text": "            current[0] += 1"
+                },
+                {
+                  "type": "added",
+                  "text": "            if current[0] >= steps:"
+                },
+                {
+                  "type": "added",
+                  "text": "                widget.setWindowOpacity(end_val)"
+                },
+                {
+                  "type": "added",
+                  "text": "                timer.stop()"
+                },
+                {
+                  "type": "added",
+                  "text": "                if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    callback()"
+                },
+                {
+                  "type": "added",
+                  "text": "            else:"
+                },
+                {
+                  "type": "added",
+                  "text": "                widget.setWindowOpacity(start_val + current[0] * step_val)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        timer = QTimer(widget)"
+                },
+                {
+                  "type": "added",
+                  "text": "        timer.timeout.connect(tick)"
+                },
+                {
+                  "type": "added",
+                  "text": "        timer.start(interval)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def fade_out(self, widget, duration=300, easing='ease', callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"淡出动画 — 使用 QTimer 步进，不使用 QGraphicsEffect。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        self._step_opacity(widget, duration, 1.0, 0.0, callback)"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def slide_in(self, widget, direction='left', distance=100, duration=400, easing='ease-back', callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"滑入动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        original_pos = widget.pos()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 设置起始位置"
+                },
+                {
+                  "type": "added",
+                  "text": "        if direction == 'left':"
+                },
+                {
+                  "type": "added",
+                  "text": "            start_pos = QPoint(original_pos.x() - distance, original_pos.y())"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'right':"
+                },
+                {
+                  "type": "added",
+                  "text": "            start_pos = QPoint(original_pos.x() + distance, original_pos.y())"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'top':"
+                },
+                {
+                  "type": "added",
+                  "text": "            start_pos = QPoint(original_pos.x(), original_pos.y() - distance)"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'bottom':"
+                },
+                {
+                  "type": "added",
+                  "text": "            start_pos = QPoint(original_pos.x(), original_pos.y() + distance)"
+                },
+                {
+                  "type": "added",
+                  "text": "        else:"
+                },
+                {
+                  "type": "added",
+                  "text": "            start_pos = original_pos"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        widget.move(start_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "        widget.show()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 创建位移动画"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setDuration(duration)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setStartValue(start_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEndValue(original_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.OutBack))"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "            animation.finished.connect(callback)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(animation)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return animation"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def slide_out(self, widget, direction='right', distance=100, duration=400, easing='ease-in', callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"滑出动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        original_pos = widget.pos()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 计算结束位置"
+                },
+                {
+                  "type": "added",
+                  "text": "        if direction == 'left':"
+                },
+                {
+                  "type": "added",
+                  "text": "            end_pos = QPoint(original_pos.x() - distance, original_pos.y())"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'right':"
+                },
+                {
+                  "type": "added",
+                  "text": "            end_pos = QPoint(original_pos.x() + distance, original_pos.y())"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'top':"
+                },
+                {
+                  "type": "added",
+                  "text": "            end_pos = QPoint(original_pos.x(), original_pos.y() - distance)"
+                },
+                {
+                  "type": "added",
+                  "text": "        elif direction == 'bottom':"
+                },
+                {
+                  "type": "added",
+                  "text": "            end_pos = QPoint(original_pos.x(), original_pos.y() + distance)"
+                },
+                {
+                  "type": "added",
+                  "text": "        else:"
+                },
+                {
+                  "type": "added",
+                  "text": "            end_pos = original_pos"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        animation = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setDuration(duration)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setStartValue(original_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEndValue(end_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.InQuad))"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "            animation.finished.connect(callback)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(animation)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return animation"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def scale(self, widget, from_scale=0.0, to_scale=1.0, duration=400, easing='ease-back', callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"缩放动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        original_geometry = widget.geometry()"
+                },
+                {
+                  "type": "added",
+                  "text": "        center = widget.geometry().center()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 计算起始和结束几何体"
+                },
+                {
+                  "type": "added",
+                  "text": "        start_width = int(original_geometry.width() * from_scale)"
+                },
+                {
+                  "type": "added",
+                  "text": "        start_height = int(original_geometry.height() * from_scale)"
+                },
+                {
+                  "type": "added",
+                  "text": "        start_x = center.x() - start_width // 2"
+                },
+                {
+                  "type": "added",
+                  "text": "        start_y = center.y() - start_height // 2"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        end_width = int(original_geometry.width() * to_scale)"
+                },
+                {
+                  "type": "added",
+                  "text": "        end_height = int(original_geometry.height() * to_scale)"
+                },
+                {
+                  "type": "added",
+                  "text": "        end_x = center.x() - end_width // 2"
+                },
+                {
+                  "type": "added",
+                  "text": "        end_y = center.y() - end_height // 2"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        start_rect = QRect(start_x, start_y, start_width, start_height)"
+                },
+                {
+                  "type": "added",
+                  "text": "        end_rect = QRect(end_x, end_y, end_width, end_height)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        widget.setGeometry(start_rect)"
+                },
+                {
+                  "type": "added",
+                  "text": "        widget.show()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        animation = QPropertyAnimation(widget, b\"geometry\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setDuration(duration)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setStartValue(start_rect)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEndValue(end_rect)"
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.OutBack))"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "            animation.finished.connect(callback)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        animation.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(animation)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return animation"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def bounce(self, widget, duration=600, callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"弹跳动画 - 使用安全的动画方案\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        # 检查widget是否正在动画中"
+                },
+                {
+                  "type": "added",
+                  "text": "        if hasattr(widget, '_animating') and widget._animating:"
+                },
+                {
+                  "type": "added",
+                  "text": "            return"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        original_pos = widget.pos()"
+                },
+                {
+                  "type": "added",
+                  "text": "        widget._animating = True"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtCore import QSequentialAnimationGroup, QTimer"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 延迟执行以确保widget准备好"
+                },
+                {
+                  "type": "added",
+                  "text": "        def safe_bounce():"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._do_bounce(widget, original_pos, duration, callback)"
+                },
+                {
+                  "type": "added",
+                  "text": "            except Exception:"
+                },
+                {
+                  "type": "added",
+                  "text": "                widget._animating = False"
+                },
+                {
+                  "type": "added",
+                  "text": "                if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    callback()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        QTimer.singleShot(10, safe_bounce)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "    def _do_bounce(self, widget, original_pos, duration, callback):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"执行实际的弹跳动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            from PyQt6.QtCore import QSequentialAnimationGroup"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            group = QSequentialAnimationGroup()"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            # 向上"
+                },
+                {
+                  "type": "added",
+                  "text": "            up1 = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            up1.setDuration(duration // 4)"
+                },
+                {
+                  "type": "added",
+                  "text": "            up1.setStartValue(original_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "            up1.setEndValue(QPoint(original_pos.x(), original_pos.y() - 30))"
+                },
+                {
+                  "type": "added",
+                  "text": "            up1.setEasingCurve(QEasingCurve.Type.OutQuad)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            # 向下"
+                },
+                {
+                  "type": "added",
+                  "text": "            down1 = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            down1.setDuration(duration // 4)"
+                },
+                {
+                  "type": "added",
+                  "text": "            down1.setStartValue(QPoint(original_pos.x(), original_pos.y() - 30))"
+                },
+                {
+                  "type": "added",
+                  "text": "            down1.setEndValue(QPoint(original_pos.x(), original_pos.y() + 10))"
+                },
+                {
+                  "type": "added",
+                  "text": "            down1.setEasingCurve(QEasingCurve.Type.InQuad)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            # 向上"
+                },
+                {
+                  "type": "added",
+                  "text": "            up2 = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            up2.setDuration(duration // 4)"
+                },
+                {
+                  "type": "added",
+                  "text": "            up2.setStartValue(QPoint(original_pos.x(), original_pos.y() + 10))"
+                },
+                {
+                  "type": "added",
+                  "text": "            up2.setEndValue(QPoint(original_pos.x(), original_pos.y() - 15))"
+                },
+                {
+                  "type": "added",
+                  "text": "            up2.setEasingCurve(QEasingCurve.Type.OutQuad)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            # 回到原位"
+                },
+                {
+                  "type": "added",
+                  "text": "            down2 = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            down2.setDuration(duration // 4)"
+                },
+                {
+                  "type": "added",
+                  "text": "            down2.setStartValue(QPoint(original_pos.x(), original_pos.y() - 15))"
+                },
+                {
+                  "type": "added",
+                  "text": "            down2.setEndValue(original_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "            down2.setEasingCurve(QEasingCurve.Type.InQuad)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            group.addAnimation(up1)"
+                },
+                {
+                  "type": "added",
+                  "text": "            group.addAnimation(down1)"
+                },
+                {
+                  "type": "added",
+                  "text": "            group.addAnimation(up2)"
+                },
+                {
+                  "type": "added",
+                  "text": "            group.addAnimation(down2)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            # 动画结束时清除状态"
+                },
+                {
+                  "type": "added",
+                  "text": "            def on_finished():"
+                },
+                {
+                  "type": "added",
+                  "text": "                widget._animating = False"
+                },
+                {
+                  "type": "added",
+                  "text": "                if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    callback()"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            group.finished.connect(on_finished)"
+                },
+                {
+                  "type": "added",
+                  "text": "            "
+                },
+                {
+                  "type": "added",
+                  "text": "            group.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.animations.append(group)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except Exception:"
+                },
+                {
+                  "type": "added",
+                  "text": "            widget._animating = False"
+                },
+                {
+                  "type": "added",
+                  "text": "            if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "                callback()"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def shake(self, widget, duration=400, callback=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"摇晃动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        # 检查widget是否正在动画中"
+                },
+                {
+                  "type": "added",
+                  "text": "        if hasattr(widget, '_animating') and widget._animating:"
+                },
+                {
+                  "type": "added",
+                  "text": "            return"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        original_pos = widget.pos()"
+                },
+                {
+                  "type": "added",
+                  "text": "        widget._animating = True"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtCore import QSequentialAnimationGroup"
+                },
+                {
+                  "type": "added",
+                  "text": "        group = QSequentialAnimationGroup()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 摇晃序列"
+                },
+                {
+                  "type": "added",
+                  "text": "        positions = ["
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() - 10, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() + 10, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() - 8, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() + 8, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() - 5, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() + 5, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() - 2, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            QPoint(original_pos.x() + 2, original_pos.y()),"
+                },
+                {
+                  "type": "added",
+                  "text": "            original_pos"
+                },
+                {
+                  "type": "added",
+                  "text": "        ]"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        for pos in positions:"
+                },
+                {
+                  "type": "added",
+                  "text": "            shake = QPropertyAnimation(widget, b\"pos\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            shake.setDuration(duration // len(positions))"
+                },
+                {
+                  "type": "added",
+                  "text": "            shake.setStartValue(widget.pos() if group.animationCount() > 0 else original_pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "            shake.setEndValue(pos)"
+                },
+                {
+                  "type": "added",
+                  "text": "            shake.setEasingCurve(QEasingCurve.Type.Linear)"
+                },
+                {
+                  "type": "added",
+                  "text": "            group.addAnimation(shake)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        # 动画结束时清除状态"
+                },
+                {
+                  "type": "added",
+                  "text": "        def on_finished():"
+                },
+                {
+                  "type": "added",
+                  "text": "            widget._animating = False"
+                },
+                {
+                  "type": "added",
+                  "text": "            if callback:"
+                },
+                {
+                  "type": "added",
+                  "text": "                callback()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group.finished.connect(on_finished)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(group)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return group"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def stagger(self, widgets, animation_func, stagger_delay=100, **kwargs):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"交错动画 - 为多个widget创建延迟执行的相同动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        animations = []"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        for i, widget in enumerate(widgets):"
+                },
+                {
+                  "type": "added",
+                  "text": "            delay = QTimer()"
+                },
+                {
+                  "type": "added",
+                  "text": "            delay.setSingleShot(True)"
+                },
+                {
+                  "type": "added",
+                  "text": "            delay.timeout.connect(lambda w=widget, a=animation_func, k=kwargs: a(w, **k))"
+                },
+                {
+                  "type": "added",
+                  "text": "            delay.start(i * stagger_delay)"
+                },
+                {
+                  "type": "added",
+                  "text": "            animations.append(delay)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        return animations"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def timeline(self, animations):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"时间轴动画 - 顺序执行多个动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtCore import QSequentialAnimationGroup"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group = QSequentialAnimationGroup()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        for animation in animations:"
+                },
+                {
+                  "type": "added",
+                  "text": "            if isinstance(animation, (QPropertyAnimation, QSequentialAnimationGroup)):"
+                },
+                {
+                  "type": "added",
+                  "text": "                group.addAnimation(animation)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(group)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return group"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def parallel(self, animations):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"并行动画 - 同时执行多个动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtCore import QParallelAnimationGroup"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group = QParallelAnimationGroup()"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        for animation in animations:"
+                },
+                {
+                  "type": "added",
+                  "text": "            if isinstance(animation, (QPropertyAnimation, QSequentialAnimationGroup)):"
+                },
+                {
+                  "type": "added",
+                  "text": "                group.addAnimation(animation)"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "        group.start()"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.animations.append(group)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return group"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 全局动画管理器实例"
+                },
+                {
+                  "type": "added",
+                  "text": "animation_manager = AnimationManager()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# ==================== 自定义Switch组件 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "class ModernSwitch(QWidget):"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"现代化Switch开关组件 - 支持圆角和滑动动画\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    toggled = pyqtSignal(bool)"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def __init__(self, parent=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        super().__init__(parent)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.setFixedSize(50, 26)  # 设置固定尺寸"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._is_checked = False"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._animation = None"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thumb_position = 2  # 拇指位置"
+                },
+                {
+                  "type": "added",
+                  "text": "        "
+                },
+                {
+                  "type": "added",
+                  "text": "    def setChecked(self, checked):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"设置开关状态\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        if self._is_checked != checked:"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._is_checked = checked"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.toggled.emit(checked)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.update()"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def isChecked(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"获取开关状态\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        return self._is_checked"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def mousePressEvent(self, event):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"鼠标点击事件\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        if event.button() == Qt.MouseButton.LeftButton:"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.setChecked(not self._is_checked)"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def paintEvent(self, event):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"绘制Switch组件\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            painter = QPainter(self)"
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.setRenderHint(QPainter.RenderHint.Antialiasing)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 获取当前主题颜色"
+                },
+                {
+                  "type": "added",
+                  "text": "            theme = theme_manager.get_current_theme()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 绘制轨道（圆角矩形）"
+                },
+                {
+                  "type": "added",
+                  "text": "            track_color = QColor(theme.get(\"switch_track\", \"#CBD5E1\"))"
+                },
+                {
+                  "type": "added",
+                  "text": "            if self._is_checked:"
+                },
+                {
+                  "type": "added",
+                  "text": "                track_color = QColor(theme.get(\"primary\", \"#3B82F6\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.setBrush(track_color)"
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.setPen(Qt.PenStyle.NoPen)"
+                },
+                {
+                  "type": "added",
+                  "text": "            track_rect = self.rect().adjusted(0, 0, 0, 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.drawRoundedRect(track_rect, 13, 13)  # 圆角半径为高度的一半"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 绘制拇指（圆形按钮）"
+                },
+                {
+                  "type": "added",
+                  "text": "            thumb_color = QColor(theme.get(\"switch_thumb\", \"#3B82F6\"))"
+                },
+                {
+                  "type": "added",
+                  "text": "            if not self._is_checked:"
+                },
+                {
+                  "type": "added",
+                  "text": "                thumb_color = QColor(theme.get(\"switch_thumb_disabled\", \"#94A3B8\"))"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.setBrush(thumb_color)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 计算拇指位置"
+                },
+                {
+                  "type": "added",
+                  "text": "            if self._is_checked:"
+                },
+                {
+                  "type": "added",
+                  "text": "                thumb_x = self.width() - 24  # 右侧位置"
+                },
+                {
+                  "type": "added",
+                  "text": "            else:"
+                },
+                {
+                  "type": "added",
+                  "text": "                thumb_x = 2  # 左侧位置"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            thumb_rect = QRect(thumb_x, 3, 20, 20)  # 圆形拇指"
+                },
+                {
+                  "type": "added",
+                  "text": "            painter.drawEllipse(thumb_rect)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        except (KeyboardInterrupt, SystemExit):"
+                },
+                {
+                  "type": "added",
+                  "text": "            raise"
+                },
+                {
+                  "type": "added",
+                  "text": "        except Exception:"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass  # 静默忽略绘制异常，避免关闭时崩溃"
+                },
+                {
+                  "type": "added",
+                  "text": "    "
+                },
+                {
+                  "type": "added",
+                  "text": "    def sizeHint(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"推荐尺寸\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        return self.size()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# ==================== 内置数据 ===================="
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "PROMPT_TEMPLATES = {"
+                }
+              ]
+            },
+            {
+              "old_start": 103,
+              "old_count": 6,
+              "new_start": 608,
+              "new_count": 144,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    with open(filepath, \"r\", encoding=\"utf-8\") as f:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return json.load(f)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# ==================== Diff 解析器 ===================="
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "class DiffParser:"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"\"\"解析 git diff 输出，提取文件和行变更。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    @staticmethod"
+                },
+                {
+                  "type": "added",
+                  "text": "    def parse(diff_text):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"解析 git diff 文本，返回结构化数据。"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        返回:"
+                },
+                {
+                  "type": "added",
+                  "text": "            list of dict: ["
+                },
+                {
+                  "type": "added",
+                  "text": "                {"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"file\": \"main.py\","
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"additions\": 5,"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"deletions\": 2,"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"hunks\": ["
+                },
+                {
+                  "type": "added",
+                  "text": "                        {"
+                },
+                {
+                  "type": "added",
+                  "text": "                            \"old_start\": 10, \"old_count\": 3,"
+                },
+                {
+                  "type": "added",
+                  "text": "                            \"new_start\": 10, \"new_count\": 6,"
+                },
+                {
+                  "type": "added",
+                  "text": "                            \"lines\": ["
+                },
+                {
+                  "type": "added",
+                  "text": "                                {\"type\": \"unchanged\", \"text\": \"def foo():\"},"
+                },
+                {
+                  "type": "added",
+                  "text": "                                {\"type\": \"added\", \"text\": \"    pass\"},"
+                },
+                {
+                  "type": "added",
+                  "text": "                                {\"type\": \"removed\", \"text\": \"    return\"},"
+                },
+                {
+                  "type": "added",
+                  "text": "                            ]"
+                },
+                {
+                  "type": "added",
+                  "text": "                        }"
+                },
+                {
+                  "type": "added",
+                  "text": "                    ]"
+                },
+                {
+                  "type": "added",
+                  "text": "                }"
+                },
+                {
+                  "type": "added",
+                  "text": "            ]"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        files = []"
+                },
+                {
+                  "type": "added",
+                  "text": "        current_file = None"
+                },
+                {
+                  "type": "added",
+                  "text": "        current_hunk = None"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        for line in diff_text.split(\"\\n\"):"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 文件头：diff --git a/xxx b/xxx"
+                },
+                {
+                  "type": "added",
+                  "text": "            if line.startswith(\"diff --git\"):"
+                },
+                {
+                  "type": "added",
+                  "text": "                if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    files.append(current_file)"
+                },
+                {
+                  "type": "added",
+                  "text": "                # 提取文件名"
+                },
+                {
+                  "type": "added",
+                  "text": "                parts = line.split(\" \")"
+                },
+                {
+                  "type": "added",
+                  "text": "                file_path = parts[-1][2:]  # 去掉 \"b/\""
+                },
+                {
+                  "type": "added",
+                  "text": "                current_file = {"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"file\": file_path,"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"additions\": 0,"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"deletions\": 0,"
+                },
+                {
+                  "type": "added",
+                  "text": "                    \"hunks\": [],"
+                },
+                {
+                  "type": "added",
+                  "text": "                }"
+                },
+                {
+                  "type": "added",
+                  "text": "                current_hunk = None"
+                },
+                {
+                  "type": "added",
+                  "text": "                continue"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 二进制文件跳过"
+                },
+                {
+                  "type": "added",
+                  "text": "                if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    files.append(current_file)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_file = None"
+                },
+                {
+                  "type": "added",
+                  "text": "                continue"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # Hunk 头：@@ -old_start,old_count +new_start,new_count @@"
+                },
+                {
+                  "type": "added",
+                  "text": "            if line.startswith(\"@@\"):"
+                },
+                {
+                  "type": "added",
+                  "text": "                try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    m = line.split(\"@@\")[1].strip()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    old_part, new_part = m.split(\" \")[:2]"
+                },
+                {
+                  "type": "added",
+                  "text": "                    old_start, old_count = DiffParser._parse_range(old_part)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    new_start, new_count = DiffParser._parse_range(new_part)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_hunk = {"
+                },
+                {
+                  "type": "added",
+                  "text": "                        \"old_start\": old_start,"
+                },
+                {
+                  "type": "added",
+                  "text": "                        \"old_count\": old_count,"
+                },
+                {
+                  "type": "added",
+                  "text": "                        \"new_start\": new_start,"
+                },
+                {
+                  "type": "added",
+                  "text": "                        \"new_count\": new_count,"
+                },
+                {
+                  "type": "added",
+                  "text": "                        \"lines\": [],"
+                },
+                {
+                  "type": "added",
+                  "text": "                    }"
+                },
+                {
+                  "type": "added",
+                  "text": "                    if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        current_file[\"hunks\"].append(current_hunk)"
+                },
+                {
+                  "type": "added",
+                  "text": "                except (IndexError, ValueError):"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_hunk = None"
+                },
+                {
+                  "type": "added",
+                  "text": "                continue"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "            # 内容行"
+                },
+                {
+                  "type": "added",
+                  "text": "            if current_hunk and line:"
+                },
+                {
+                  "type": "added",
+                  "text": "                if line[0] == \"+\":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_hunk[\"lines\"].append({\"type\": \"added\", \"text\": line[1:]})"
+                },
+                {
+                  "type": "added",
+                  "text": "                    if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        current_file[\"additions\"] += 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                elif line[0] == \"-\":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_hunk[\"lines\"].append({\"type\": \"removed\", \"text\": line[1:]})"
+                },
+                {
+                  "type": "added",
+                  "text": "                    if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        current_file[\"deletions\"] += 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                elif line[0] == \" \":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    current_hunk[\"lines\"].append({\"type\": \"unchanged\", \"text\": line[1:]})"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        # 最后一个文件"
+                },
+                {
+                  "type": "added",
+                  "text": "        if current_file:"
+                },
+                {
+                  "type": "added",
+                  "text": "            files.append(current_file)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        return files"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    @staticmethod"
+                },
+                {
+                  "type": "added",
+                  "text": "    def _parse_range(s):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"解析 '-10,5' -> (10, 5)\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        s = s[1:]  # 去掉前缀符号"
+                },
+                {
+                  "type": "added",
+                  "text": "        if \",\" in s:"
+                },
+                {
+                  "type": "added",
+                  "text": "            start, count = s.split(\",\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            return int(start), int(count)"
+                },
+                {
+                  "type": "added",
+                  "text": "        return int(s), 1"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    @staticmethod"
+                },
+                {
+                  "type": "added",
+                  "text": "    def get_diff_text(file_path, working_dir=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"执行 git diff 获取文本。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            cmd = [\"git\", \"diff\", \"--no-color\", \"--\", file_path]"
+                },
+                {
+                  "type": "added",
+                  "text": "            result = subprocess.run("
+                },
+                {
+                  "type": "added",
+                  "text": "                cmd,"
+                },
+                {
+                  "type": "added",
+                  "text": "                capture_output=True,"
+                },
+                {
+                  "type": "added",
+                  "text": "                text=True,"
+                },
+                {
+                  "type": "added",
+                  "text": "                cwd=working_dir,"
+                },
+                {
+                  "type": "added",
+                  "text": "                timeout=5,"
+                },
+                {
+                  "type": "added",
+                  "text": "            )"
+                },
+                {
+                  "type": "added",
+                  "text": "            return result.stdout if result.returncode == 0 else \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        except (subprocess.TimeoutExpired, Exception):"
+                },
+                {
+                  "type": "added",
+                  "text": "            return \"\""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    @staticmethod"
+                },
+                {
+                  "type": "added",
+                  "text": "    def get_all_diffs(working_dir=None):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"获取所有已修改文件的 diff。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            cmd = [\"git\", \"diff\", \"--no-color\"]"
+                },
+                {
+                  "type": "added",
+                  "text": "            result = subprocess.run("
+                },
+                {
+                  "type": "added",
+                  "text": "                cmd,"
+                },
+                {
+                  "type": "added",
+                  "text": "                capture_output=True,"
+                },
+                {
+                  "type": "added",
+                  "text": "                text=True,"
+                },
+                {
+                  "type": "added",
+                  "text": "                cwd=working_dir,"
+                },
+                {
+                  "type": "added",
+                  "text": "                timeout=10,"
+                },
+                {
+                  "type": "added",
+                  "text": "            )"
+                },
+                {
+                  "type": "added",
+                  "text": "            return result.stdout if result.returncode == 0 else \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        except (subprocess.TimeoutExpired, Exception):"
+                },
+                {
+                  "type": "added",
+                  "text": "            return \"\""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "def list_conversations():"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    convs = []"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    if not os.path.exists(DATA_DIR):"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "requirements.txt",
+          "additions": 5,
+          "deletions": 0,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 1,
+              "new_start": 1,
+              "new_count": 6,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "PyQt6>=6.0"
+                },
+                {
+                  "type": "added",
+                  "text": "mistune>=3.0"
+                },
+                {
+                  "type": "added",
+                  "text": "# claude-agent-sdk 已打包到项目目录，无需 pip 安装"
+                },
+                {
+                  "type": "added",
+                  "text": "# 以下为其运行时依赖："
+                },
+                {
+                  "type": "added",
+                  "text": "anyio>=4.0.0"
+                },
+                {
+                  "type": "added",
+                  "text": "mcp>=0.1.0"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "run.bat",
+          "additions": 34,
+          "deletions": 5,
+          "hunks": [
+            {
+              "old_start": 2,
+              "old_count": 6,
+              "new_start": 2,
+              "new_count": 9,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "chcp 65001 >nul"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "title Claude Code 桌面助手"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "REM 保存用户的项目目录（执行脚本前的当前目录）"
+                },
+                {
+                  "type": "added",
+                  "text": "set CCVIEW_PROJECT_DIR=%CD%"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "cd /d \"%~dp0\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo ========================================"
+                }
+              ]
+            },
+            {
+              "old_start": 24,
+              "old_count": 12,
+              "new_start": 27,
+              "new_count": 21,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    set PYTHON=python3"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "echo [1/3] Python3: OK"
+                },
+                {
+                  "type": "added",
+                  "text": "REM Python 版本检查（SDK 需要 >= 3.10）"
+                },
+                {
+                  "type": "added",
+                  "text": "%PYTHON% -c \"import sys; exit(0 if sys.version_info >= (3,10) else 1)\" >nul 2>&1"
+                },
+                {
+                  "type": "added",
+                  "text": "if errorlevel 1 ("
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [错误] Python 版本过低，claude-agent-sdk 需要 Python ^>= 3.10"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo 请升级 Python 后重试"
+                },
+                {
+                  "type": "added",
+                  "text": "    pause"
+                },
+                {
+                  "type": "added",
+                  "text": "    exit /b 1"
+                },
+                {
+                  "type": "added",
+                  "text": ")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "echo [1/5] Python3: OK"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "REM 检查 PyQt6"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "%PYTHON% -c \"import PyQt6\" >nul 2>&1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "if errorlevel 1 ("
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo [2/3] PyQt6: 未安装"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [2/5] PyQt6: 未安装"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo."
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    set /p INSTALL=需要安装 PyQt6，是否安装？[Y/n]:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    if not defined INSTALL set INSTALL=Y"
+                }
+              ]
+            },
+            {
+              "old_start": 47,
+              "old_count": 10,
+              "new_start": 59,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo PyQt6 安装完成"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ") else ("
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo [2/3] PyQt6: 已安装"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [2/5] PyQt6: 已安装"
+                },
+                {
+                  "type": "added",
+                  "text": ")"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "REM 检查 claude-agent-sdk（已打包到项目中）"
+                },
+                {
+                  "type": "added",
+                  "text": "%PYTHON% -c \"import claude_agent_sdk\" >nul 2>&1"
+                },
+                {
+                  "type": "added",
+                  "text": "if errorlevel 1 ("
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [3/5] claude-agent-sdk: 未安装依赖"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo 正在安装 SDK 依赖 (anyio, mcp)..."
+                },
+                {
+                  "type": "added",
+                  "text": "    pip install anyio mcp"
+                },
+                {
+                  "type": "added",
+                  "text": "    if errorlevel 1 ("
+                },
+                {
+                  "type": "added",
+                  "text": "        echo [错误] SDK 依赖安装失败，请手动运行: pip install anyio mcp"
+                },
+                {
+                  "type": "added",
+                  "text": "        pause"
+                },
+                {
+                  "type": "added",
+                  "text": "        exit /b 1"
+                },
+                {
+                  "type": "added",
+                  "text": "    )"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo SDK 依赖安装完成"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [3/5] claude-agent-sdk: v0.1.66 (已打包)"
+                },
+                {
+                  "type": "added",
+                  "text": ") else ("
+                },
+                {
+                  "type": "added",
+                  "text": "    echo [3/5] claude-agent-sdk: v0.1.66 (已打包)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "REM 检查 claude CLI"
+                },
+                {
+                  "type": "added",
+                  "text": "REM 检查 claude CLI（SDK 内部需要）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "where claude >nul 2>&1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "if errorlevel 1 ("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo [错误] 未找到 claude 命令"
+                }
+              ]
+            },
+            {
+              "old_start": 59,
+              "old_count": 7,
+              "new_start": 88,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    pause"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    exit /b 1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ")"
+                },
+                {
+                  "type": "removed",
+                  "text": "echo [3/3] Claude CLI: OK"
+                },
+                {
+                  "type": "added",
+                  "text": "echo [4/5] Claude CLI: OK"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo."
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo ========================================"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "run.sh",
+          "additions": 51,
+          "deletions": 12,
+          "hunks": [
+            {
+              "old_start": 2,
+              "old_count": 6,
+              "new_start": 2,
+              "new_count": 9,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "# Claude Code 桌面助手 — macOS / Linux 启动脚本"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# 用法: ./run.sh"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 保存用户的项目目录（执行脚本前的当前目录）"
+                },
+                {
+                  "type": "added",
+                  "text": "export CCVIEW_PROJECT_DIR=\"$PWD\""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "cd \"$DIR\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                }
+              ]
+            },
+            {
+              "old_start": 30,
+              "old_count": 25,
+              "new_start": 33,
+              "new_count": 44,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# ===== 以下在终端中运行 ====="
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "# 检查 Python3"
+                },
+                {
+                  "type": "removed",
+                  "text": "if ! command -v python3 &> /dev/null; then"
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo \"[错误] 未找到 python3，请先安装 Python 3\""
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo \"下载地址: https://www.python.org/downloads/\""
+                },
+                {
+                  "type": "added",
+                  "text": "# 寻找 >= 3.10 的 Python（SDK 需要 3.10+）"
+                },
+                {
+                  "type": "added",
+                  "text": "find_python() {"
+                },
+                {
+                  "type": "added",
+                  "text": "    for candidate in python3.13 python3.12 python3.11 python3.10 python3; do"
+                },
+                {
+                  "type": "added",
+                  "text": "        if command -v \"$candidate\" &> /dev/null; then"
+                },
+                {
+                  "type": "added",
+                  "text": "            ver=$(\"$candidate\" -c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\" 2>/dev/null)"
+                },
+                {
+                  "type": "added",
+                  "text": "            major=$(\"$candidate\" -c \"import sys; print(sys.version_info.major)\" 2>/dev/null)"
+                },
+                {
+                  "type": "added",
+                  "text": "            minor=$(\"$candidate\" -c \"import sys; print(sys.version_info.minor)\" 2>/dev/null)"
+                },
+                {
+                  "type": "added",
+                  "text": "            if [ \"$major\" -ge 3 ] && [ \"$minor\" -ge 10 ]; then"
+                },
+                {
+                  "type": "added",
+                  "text": "                echo \"$candidate\""
+                },
+                {
+                  "type": "added",
+                  "text": "                return 0"
+                },
+                {
+                  "type": "added",
+                  "text": "            fi"
+                },
+                {
+                  "type": "added",
+                  "text": "        fi"
+                },
+                {
+                  "type": "added",
+                  "text": "    done"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "    return 1"
+                },
+                {
+                  "type": "added",
+                  "text": "}"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "PYTHON_CMD=$(find_python)"
+                },
+                {
+                  "type": "added",
+                  "text": "if [ -z \"$PYTHON_CMD\" ]; then"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[错误] 未找到 Python >= 3.10，claude-agent-sdk 需要 Python 3.10+\""
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"请安装: brew install python@3.11\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo \"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    read -p \"按回车键退出...\" REPLY"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    exit 1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "fi"
+                },
+                {
+                  "type": "removed",
+                  "text": "echo \"[1/3] Python3: $(python3 --version 2>&1)\""
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "PYTHON_VER=$(\"$PYTHON_CMD\" -c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\")"
+                },
+                {
+                  "type": "added",
+                  "text": "echo \"[1/5] Python3: $PYTHON_VER ($PYTHON_CMD)\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# 检查 PyQt6"
+                },
+                {
+                  "type": "removed",
+                  "text": "if ! python3 -c \"import PyQt6\" 2>/dev/null; then"
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo \"[2/3] PyQt6: 未安装\""
+                },
+                {
+                  "type": "added",
+                  "text": "if ! \"$PYTHON_CMD\" -c \"import PyQt6\" 2>/dev/null; then"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[2/5] PyQt6: 未安装\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo \"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    read -p \"需要安装 PyQt6，是否安装？[Y/n] \" REPLY"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    REPLY=\"${REPLY:-Y}\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    if [[ \"$REPLY\" =~ ^[Yy]$ ]]; then"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        echo \"正在安装 PyQt6...\""
+                },
+                {
+                  "type": "removed",
+                  "text": "        pip3 install PyQt6"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"$PYTHON_CMD\" -m pip install PyQt6"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if [ $? -ne 0 ]; then"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            echo \"[错误] PyQt6 安装失败，请手动运行: pip3 install PyQt6\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            echo \"\""
+                }
+              ]
+            },
+            {
+              "old_start": 62,
+              "old_count": 10,
+              "new_start": 84,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        exit 1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    fi"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "else"
+                },
+                {
+                  "type": "removed",
+                  "text": "    echo \"[2/3] PyQt6: 已安装\""
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[2/5] PyQt6: 已安装\""
+                },
+                {
+                  "type": "added",
+                  "text": "fi"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 检查 claude-agent-sdk（已打包到项目中）"
+                },
+                {
+                  "type": "added",
+                  "text": "if ! \"$PYTHON_CMD\" -c \"import claude_agent_sdk\" 2>/dev/null; then"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[3/5] claude-agent-sdk: 未安装依赖\""
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"正在安装 SDK 依赖 (anyio, mcp)...\""
+                },
+                {
+                  "type": "added",
+                  "text": "    \"$PYTHON_CMD\" -m pip install anyio mcp"
+                },
+                {
+                  "type": "added",
+                  "text": "    if [ $? -ne 0 ]; then"
+                },
+                {
+                  "type": "added",
+                  "text": "        echo \"[错误] SDK 依赖安装失败，请手动运行: pip3 install anyio mcp\""
+                },
+                {
+                  "type": "added",
+                  "text": "        echo \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        read -p \"按回车键退出...\" REPLY"
+                },
+                {
+                  "type": "added",
+                  "text": "        exit 1"
+                },
+                {
+                  "type": "added",
+                  "text": "    fi"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"SDK 依赖安装完成\""
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[3/5] claude-agent-sdk: v0.1.66 (已打包)\""
+                },
+                {
+                  "type": "added",
+                  "text": "else"
+                },
+                {
+                  "type": "added",
+                  "text": "    echo \"[3/5] claude-agent-sdk: v0.1.66 (已打包)\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "fi"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "# 检查 claude CLI"
+                },
+                {
+                  "type": "added",
+                  "text": "# 检查 claude CLI（SDK 内部需要）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "if ! command -v claude &> /dev/null; then"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo \"[错误] 未找到 claude 命令\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    echo \"请先安装 Claude Code CLI\""
+                }
+              ]
+            },
+            {
+              "old_start": 74,
+              "old_count": 7,
+              "new_start": 113,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    read -p \"按回车键退出...\" REPLY"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    exit 1"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "fi"
+                },
+                {
+                  "type": "removed",
+                  "text": "echo \"[3/3] Claude CLI: $(claude --version 2>&1 | head -1)\""
+                },
+                {
+                  "type": "added",
+                  "text": "echo \"[4/5] Claude CLI: $(claude --version 2>&1 | head -1)\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo \"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo \"========================================\""
+                }
+              ]
+            },
+            {
+              "old_start": 82,
+              "old_count": 4,
+              "new_start": 121,
+              "new_count": 4,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "echo \"========================================\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "echo \"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "removed",
+                  "text": "python3 main.py"
+                },
+                {
+                  "type": "added",
+                  "text": "\"$PYTHON_CMD\" main.py"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "session_id": "7f76158c-be8a-4c5e-bb6c-4cf78e3a9085"
+}

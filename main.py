@@ -5,10 +5,22 @@ import os
 import json
 import uuid
 import subprocess
+import random
 from datetime import datetime
 import threading
-import secrets
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import anyio
+
+from claude_agent_sdk import (
+    ClaudeSDKClient, ClaudeAgentOptions,
+    PermissionResultAllow, PermissionResultDeny,
+    SystemMessage, AssistantMessage, ResultMessage, StreamEvent,
+    TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
+)
+
+try:
+    import mistune
+except ImportError:
+    mistune = None
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -16,8 +28,8 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QScrollArea, QFrame,
     QDialog, QFileDialog, QMessageBox, QSizePolicy, QMenu,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QRect, QPoint
-from PyQt6.QtGui import QFont, QColor, QIcon
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QPoint, QRect, QMetaObject, Qt as Qt_Type
+from PyQt6.QtGui import QFont, QColor, QIcon, QPalette, QPainter, QTextOption
 
 from claude_client import ClaudeClient
 
@@ -26,36 +38,534 @@ from claude_client import ClaudeClient
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "conversations")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ==================== 深色主题令牌 ====================
+# ==================== 主题系统 ====================
 
-THEME = {
-    "bg_primary": "#0F0F14",    # 深空黑 主背景
-    "bg_secondary": "#1A1A2E",  # 侧边栏背景
-    "bg_card": "#25253D",       # 卡片背景
-    "bg_input": "#1E1E35",      # 输入框背景
-    "border": "#2D2D4A",        # 边框色
-    "border_focus": "#6366F1",  # 聚焦边框
+# 深色主题（参考 Gemini/ChatGPT/Claude 暖灰风格）
+DARK_THEME = {
+    "bg_primary": "#212121",     # 暖灰 主背景/消息区（参考 ChatGPT/千问）
+    "bg_secondary": "#1A1A1A",   # 深灰 侧边栏背景（比主背景略深，形成层次）
+    "bg_card": "#2A2A2A",        # 卡片/气泡背景（比主背景略亮）
+    "bg_input": "#2A2A2A",       # 输入框背景（同卡片，区分于消息区）
+    "border": "#333333",         # 淡灰边框（暖色调）
+    "border_focus": "#818CF8",   # 紫蓝聚焦边框
+    "primary": "#818CF8",        # 紫蓝主题色（参考千问/Claude）
+    "primary_hover": "#A5B4FC",  # 悬停色
+    "red": "#EF4444",            # 停止/错误
+    "red_hover": "#DC2626",
+    "green": "#34D399",          # 翠绿（提高对比度）
+    "green_hover": "#10B981",
+    "orange": "#FBBF24",
+    "purple": "#A78BFA",
+    "teal": "#5EEAD4",
+    "text_primary": "#EAEAEA",   # 亮灰主文字（接近白色，高对比）
+    "text_secondary": "#A0A0A0", # 中灰次要文字
+    "text_tertiary": "#666666",  # 弱提示
+    "user_bubble": "#2A2A2A",    # 用户气泡（同卡片）
+    "user_bubble_gradient_end": "#1A3A2A",  # 用户气泡渐变结束色（深绿）
+    "user_text": "#EAEAEA",
+    "ai_bubble": "#2A2A2A",      # AI 气泡（同卡片）
+    "ai_text": "#EAEAEA",
+    "system_bubble": "#3A2A1A",  # 系统气泡（暖棕色调）
+    "system_text": "#FBBF24",
+    "thinking_bg": "#1E1E1E",    # 思考块背景（比主背景略深）
+    "thinking_border": "#333333",
+    "switch_track": "#333333",   # Switch轨道
+    "switch_thumb": "#818CF8",   # Switch按钮
+    "switch_thumb_disabled": "#555555",
+    "shadow": "rgba(0, 0, 0, 0.4)", # 阴影色
+    "gradient_start": "#818CF8", # 渐变起始
+    "gradient_end": "#A78BFA",   # 渐变结束
+}
+
+# 浅色主题（现代化高级设计）
+LIGHT_THEME = {
+    "bg_primary": "#FAFBFC",    # 极浅灰 主背景
+    "bg_secondary": "#FFFFFF",  # 纯白 侧边栏背景
+    "bg_card": "#FFFFFF",       # 纯白 卡片背景
+    "bg_input": "#F8FAFC",      # 输入框背景
+    "border": "#E5E7EB",        # 淡边框色
+    "border_focus": "#6366F1",  # 紫蓝聚焦边框
     "primary": "#6366F1",       # 紫蓝主题色
     "primary_hover": "#818CF8", # 悬停色
     "red": "#EF4444",           # 停止/错误
     "red_hover": "#DC2626",
-    "green": "#22C55E",         # 成功
-    "green_hover": "#16A34A",
-    "orange": "#F97316",
-    "purple": "#A855F7",
-    "teal": "#0D9488",
-    "text_primary": "#E2E8F0",  # 主文字
-    "text_secondary": "#94A3B8",# 次要文字
-    "text_tertiary": "#64748B", # 弱提示
-    "user_bubble": "#1E3A2F",   # 用户气泡
-    "user_text": "#6EE7B7",
-    "ai_bubble": "#25253D",     # AI 气泡
-    "ai_text": "#E2E8F0",
-    "system_bubble": "#1E293B", # 系统气泡
-    "system_text": "#93C5FD",
-    "thinking_bg": "#1A1A2E",   # 思考块背景
-    "thinking_border": "#2D2D4A",
+    "green": "#10B981",         # 翠绿成功
+    "green_hover": "#059669",
+    "orange": "#F59E0B",
+    "purple": "#8B5CF6",
+    "teal": "#14B8A6",
+    "text_primary": "#111827",  # 深灰主文字
+    "text_secondary": "#6B7280",# 中灰次要文字
+    "text_tertiary": "#9CA3AF", # 浅灰弱提示
+    "user_bubble": "#EEF2FF",   # 淡紫用户气泡
+    "user_bubble_gradient_end": "#C7D2FE",  # 用户气泡渐变结束色（浅紫）
+    "user_text": "#4338CA",
+    "ai_bubble": "#F9FAFB",     # 极浅灰 AI 气泡
+    "ai_text": "#111827",
+    "system_bubble": "#FEF3C7", # 系统气泡
+    "system_text": "#92400E",
+    "thinking_bg": "#F3F4F6",   # 思考块背景
+    "thinking_border": "#D1D5DB",
+    "switch_track": "#D1D5DB",   # Switch轨道
+    "switch_thumb": "#6366F1",   # Switch按钮
+    "switch_thumb_disabled": "#9CA3AF",
+    "shadow": "rgba(0, 0, 0, 0.05)", # 阴影色
+    "gradient_start": "#6366F1", # 渐变起始
+    "gradient_end": "#8B5CF6",   # 渐变结束
 }
+
+# ==================== 主题管理器 ====================
+
+class ThemeManager(QObject):
+    """主题管理器 - 负责主题切换和配色管理"""
+    
+    theme_changed = pyqtSignal(str)  # 主题变更信号
+    
+    def __init__(self):
+        super().__init__()
+        # 默认浅色主题
+        self.current_theme = "light"
+        self.themes = {
+            "dark": DARK_THEME,
+            "light": LIGHT_THEME
+        }
+    
+    def get_current_theme(self):
+        """获取当前主题配色"""
+        return self.themes[self.current_theme]
+    
+    def switch_theme(self, theme_name=None):
+        """切换主题"""
+        if theme_name is None:
+            # 自动切换到另一个主题
+            self.current_theme = "dark" if self.current_theme == "light" else "light"
+        else:
+            if theme_name in self.themes:
+                self.current_theme = theme_name
+        
+        # 更新全局THEME变量（兼容性）
+        global THEME
+        THEME = self.get_current_theme()
+        
+        # 发射主题变更信号
+        self.theme_changed.emit(self.current_theme)
+        return self.current_theme
+    
+    def get_color(self, color_name):
+        """获取当前主题的指定颜色"""
+        return self.get_current_theme().get(color_name, "#000000")
+
+# 全局主题管理器实例
+theme_manager = ThemeManager()
+
+# 临时兼容性：为现有代码提供THEME变量
+THEME = theme_manager.get_current_theme()
+
+# ==================== 高级动画系统 ====================
+
+class AnimationManager(QObject):
+    """高级动画管理器 - 实现GSAP级别的动画效果"""
+    
+    animation_completed = pyqtSignal()
+    
+    def __init__(self):
+        super().__init__()
+        self.animations = []
+        self.easing_curves = {
+            'ease': QEasingCurve.Type.OutQuad,
+            'ease-in': QEasingCurve.Type.InQuad,
+            'ease-out': QEasingCurve.Type.OutQuad,
+            'ease-in-out': QEasingCurve.Type.InOutQuad,
+            'ease-back': QEasingCurve.Type.OutBack,
+            'ease-elastic': QEasingCurve.Type.OutElastic,
+            'ease-bounce': QEasingCurve.Type.OutBounce,
+            'power2-in': QEasingCurve.Type.InCubic,
+            'power2-out': QEasingCurve.Type.OutCubic,
+            'power2-in-out': QEasingCurve.Type.InOutCubic,
+            'power3-in': QEasingCurve.Type.InQuart,
+            'power3-out': QEasingCurve.Type.OutQuart,
+            'power3-in-out': QEasingCurve.Type.InOutQuart,
+            'power4-in': QEasingCurve.Type.InQuint,
+            'power4-out': QEasingCurve.Type.OutQuint,
+            'power4-in-out': QEasingCurve.Type.InOutQuint,
+            'sine': QEasingCurve.Type.OutSine,
+            'circ': QEasingCurve.Type.OutCirc,
+            'expo': QEasingCurve.Type.OutExpo,
+        }
+    
+    def fade_in(self, widget, duration=300, easing='ease', callback=None):
+        """淡入动画 — 使用 QTimer 步进，不使用 QGraphicsEffect。"""
+        if not widget.isVisible():
+            widget.show()
+        self._step_opacity(widget, duration, 0.0, 1.0, callback)
+
+    def _step_opacity(self, widget, duration, start_val, end_val, callback):
+        """用 QTimer 步进改变 setWindowOpacity。"""
+        steps = 16
+        interval = max(16, duration // steps)
+        step_val = (end_val - start_val) / steps
+        current = [0]
+        widget.setWindowOpacity(start_val)
+
+        def tick():
+            current[0] += 1
+            if current[0] >= steps:
+                widget.setWindowOpacity(end_val)
+                timer.stop()
+                if callback:
+                    callback()
+            else:
+                widget.setWindowOpacity(start_val + current[0] * step_val)
+
+        timer = QTimer(widget)
+        timer.timeout.connect(tick)
+        timer.start(interval)
+
+    def fade_out(self, widget, duration=300, easing='ease', callback=None):
+        """淡出动画 — 使用 QTimer 步进，不使用 QGraphicsEffect。"""
+        self._step_opacity(widget, duration, 1.0, 0.0, callback)
+    
+    def slide_in(self, widget, direction='left', distance=100, duration=400, easing='ease-back', callback=None):
+        """滑入动画"""
+        original_pos = widget.pos()
+        
+        # 设置起始位置
+        if direction == 'left':
+            start_pos = QPoint(original_pos.x() - distance, original_pos.y())
+        elif direction == 'right':
+            start_pos = QPoint(original_pos.x() + distance, original_pos.y())
+        elif direction == 'top':
+            start_pos = QPoint(original_pos.x(), original_pos.y() - distance)
+        elif direction == 'bottom':
+            start_pos = QPoint(original_pos.x(), original_pos.y() + distance)
+        else:
+            start_pos = original_pos
+        
+        widget.move(start_pos)
+        widget.show()
+        
+        # 创建位移动画
+        animation = QPropertyAnimation(widget, b"pos")
+        animation.setDuration(duration)
+        animation.setStartValue(start_pos)
+        animation.setEndValue(original_pos)
+        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.OutBack))
+        
+        if callback:
+            animation.finished.connect(callback)
+        
+        animation.start()
+        self.animations.append(animation)
+        return animation
+    
+    def slide_out(self, widget, direction='right', distance=100, duration=400, easing='ease-in', callback=None):
+        """滑出动画"""
+        original_pos = widget.pos()
+        
+        # 计算结束位置
+        if direction == 'left':
+            end_pos = QPoint(original_pos.x() - distance, original_pos.y())
+        elif direction == 'right':
+            end_pos = QPoint(original_pos.x() + distance, original_pos.y())
+        elif direction == 'top':
+            end_pos = QPoint(original_pos.x(), original_pos.y() - distance)
+        elif direction == 'bottom':
+            end_pos = QPoint(original_pos.x(), original_pos.y() + distance)
+        else:
+            end_pos = original_pos
+        
+        animation = QPropertyAnimation(widget, b"pos")
+        animation.setDuration(duration)
+        animation.setStartValue(original_pos)
+        animation.setEndValue(end_pos)
+        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.InQuad))
+        
+        if callback:
+            animation.finished.connect(callback)
+        
+        animation.start()
+        self.animations.append(animation)
+        return animation
+    
+    def scale(self, widget, from_scale=0.0, to_scale=1.0, duration=400, easing='ease-back', callback=None):
+        """缩放动画"""
+        original_geometry = widget.geometry()
+        center = widget.geometry().center()
+        
+        # 计算起始和结束几何体
+        start_width = int(original_geometry.width() * from_scale)
+        start_height = int(original_geometry.height() * from_scale)
+        start_x = center.x() - start_width // 2
+        start_y = center.y() - start_height // 2
+        
+        end_width = int(original_geometry.width() * to_scale)
+        end_height = int(original_geometry.height() * to_scale)
+        end_x = center.x() - end_width // 2
+        end_y = center.y() - end_height // 2
+        
+        start_rect = QRect(start_x, start_y, start_width, start_height)
+        end_rect = QRect(end_x, end_y, end_width, end_height)
+        
+        widget.setGeometry(start_rect)
+        widget.show()
+        
+        animation = QPropertyAnimation(widget, b"geometry")
+        animation.setDuration(duration)
+        animation.setStartValue(start_rect)
+        animation.setEndValue(end_rect)
+        animation.setEasingCurve(self.easing_curves.get(easing, QEasingCurve.Type.OutBack))
+        
+        if callback:
+            animation.finished.connect(callback)
+        
+        animation.start()
+        self.animations.append(animation)
+        return animation
+    
+    def bounce(self, widget, duration=600, callback=None):
+        """弹跳动画 - 使用安全的动画方案"""
+        # 检查widget是否正在动画中
+        if hasattr(widget, '_animating') and widget._animating:
+            return
+        
+        original_pos = widget.pos()
+        widget._animating = True
+        
+        from PyQt6.QtCore import QSequentialAnimationGroup, QTimer
+        
+        # 延迟执行以确保widget准备好
+        def safe_bounce():
+            try:
+                self._do_bounce(widget, original_pos, duration, callback)
+            except Exception:
+                widget._animating = False
+                if callback:
+                    callback()
+        
+        QTimer.singleShot(10, safe_bounce)
+        
+    def _do_bounce(self, widget, original_pos, duration, callback):
+        """执行实际的弹跳动画"""
+        try:
+            from PyQt6.QtCore import QSequentialAnimationGroup
+            
+            group = QSequentialAnimationGroup()
+            
+            # 向上
+            up1 = QPropertyAnimation(widget, b"pos")
+            up1.setDuration(duration // 4)
+            up1.setStartValue(original_pos)
+            up1.setEndValue(QPoint(original_pos.x(), original_pos.y() - 30))
+            up1.setEasingCurve(QEasingCurve.Type.OutQuad)
+            
+            # 向下
+            down1 = QPropertyAnimation(widget, b"pos")
+            down1.setDuration(duration // 4)
+            down1.setStartValue(QPoint(original_pos.x(), original_pos.y() - 30))
+            down1.setEndValue(QPoint(original_pos.x(), original_pos.y() + 10))
+            down1.setEasingCurve(QEasingCurve.Type.InQuad)
+            
+            # 向上
+            up2 = QPropertyAnimation(widget, b"pos")
+            up2.setDuration(duration // 4)
+            up2.setStartValue(QPoint(original_pos.x(), original_pos.y() + 10))
+            up2.setEndValue(QPoint(original_pos.x(), original_pos.y() - 15))
+            up2.setEasingCurve(QEasingCurve.Type.OutQuad)
+            
+            # 回到原位
+            down2 = QPropertyAnimation(widget, b"pos")
+            down2.setDuration(duration // 4)
+            down2.setStartValue(QPoint(original_pos.x(), original_pos.y() - 15))
+            down2.setEndValue(original_pos)
+            down2.setEasingCurve(QEasingCurve.Type.InQuad)
+            
+            group.addAnimation(up1)
+            group.addAnimation(down1)
+            group.addAnimation(up2)
+            group.addAnimation(down2)
+            
+            # 动画结束时清除状态
+            def on_finished():
+                widget._animating = False
+                if callback:
+                    callback()
+            
+            group.finished.connect(on_finished)
+            
+            group.start()
+            self.animations.append(group)
+        except Exception:
+            widget._animating = False
+            if callback:
+                callback()
+    
+    def shake(self, widget, duration=400, callback=None):
+        """摇晃动画"""
+        # 检查widget是否正在动画中
+        if hasattr(widget, '_animating') and widget._animating:
+            return
+        
+        original_pos = widget.pos()
+        widget._animating = True
+        
+        from PyQt6.QtCore import QSequentialAnimationGroup
+        group = QSequentialAnimationGroup()
+        
+        # 摇晃序列
+        positions = [
+            QPoint(original_pos.x() - 10, original_pos.y()),
+            QPoint(original_pos.x() + 10, original_pos.y()),
+            QPoint(original_pos.x() - 8, original_pos.y()),
+            QPoint(original_pos.x() + 8, original_pos.y()),
+            QPoint(original_pos.x() - 5, original_pos.y()),
+            QPoint(original_pos.x() + 5, original_pos.y()),
+            QPoint(original_pos.x() - 2, original_pos.y()),
+            QPoint(original_pos.x() + 2, original_pos.y()),
+            original_pos
+        ]
+        
+        for pos in positions:
+            shake = QPropertyAnimation(widget, b"pos")
+            shake.setDuration(duration // len(positions))
+            shake.setStartValue(widget.pos() if group.animationCount() > 0 else original_pos)
+            shake.setEndValue(pos)
+            shake.setEasingCurve(QEasingCurve.Type.Linear)
+            group.addAnimation(shake)
+        
+        # 动画结束时清除状态
+        def on_finished():
+            widget._animating = False
+            if callback:
+                callback()
+        
+        group.finished.connect(on_finished)
+        
+        group.start()
+        self.animations.append(group)
+        return group
+    
+    def stagger(self, widgets, animation_func, stagger_delay=100, **kwargs):
+        """交错动画 - 为多个widget创建延迟执行的相同动画"""
+        animations = []
+        
+        for i, widget in enumerate(widgets):
+            delay = QTimer()
+            delay.setSingleShot(True)
+            delay.timeout.connect(lambda w=widget, a=animation_func, k=kwargs: a(w, **k))
+            delay.start(i * stagger_delay)
+            animations.append(delay)
+        
+        return animations
+    
+    def timeline(self, animations):
+        """时间轴动画 - 顺序执行多个动画"""
+        from PyQt6.QtCore import QSequentialAnimationGroup
+        
+        group = QSequentialAnimationGroup()
+        
+        for animation in animations:
+            if isinstance(animation, (QPropertyAnimation, QSequentialAnimationGroup)):
+                group.addAnimation(animation)
+        
+        group.start()
+        self.animations.append(group)
+        return group
+    
+    def parallel(self, animations):
+        """并行动画 - 同时执行多个动画"""
+        from PyQt6.QtCore import QParallelAnimationGroup
+        
+        group = QParallelAnimationGroup()
+        
+        for animation in animations:
+            if isinstance(animation, (QPropertyAnimation, QSequentialAnimationGroup)):
+                group.addAnimation(animation)
+        
+        group.start()
+        self.animations.append(group)
+        return group
+
+# 全局动画管理器实例
+animation_manager = AnimationManager()
+
+# ==================== 自定义Switch组件 ====================
+
+class ModernSwitch(QWidget):
+    """现代化Switch开关组件 — 支持平滑滑动动画"""
+
+    toggled = pyqtSignal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(50, 26)
+        self._is_checked = False
+        self._anim_value = 0  # 0=关闭, 1=打开
+        self._anim_progress = 0.0  # 动画进度 0.0-1.0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.timeout.connect(self._anim_step)
+
+    def setChecked(self, checked):
+        """设置开关状态（带动画）"""
+        if self._is_checked != checked:
+            self._is_checked = checked
+            self._anim_progress = 0.0
+            self._anim_timer.start(1)
+            self.toggled.emit(checked)
+
+    def isChecked(self):
+        """获取开关状态"""
+        return self._is_checked
+
+    def _anim_step(self):
+        """动画步进"""
+        self._anim_progress += 0.12
+        if self._anim_progress >= 1.0:
+            self._anim_progress = 1.0
+            self._anim_timer.stop()
+        self.update()
+
+    def mousePressEvent(self, event):
+        """鼠标点击事件"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setChecked(not self._is_checked)
+
+    def paintEvent(self, event):
+        """绘制Switch组件"""
+        try:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+            theme = theme_manager.get_current_theme()
+
+            # 绘制轨道
+            track_color = QColor(theme.get("switch_track", "#CBD5E1"))
+            if self._is_checked:
+                track_color = QColor(theme.get("primary", "#3B82F6"))
+            painter.setBrush(track_color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(self.rect(), 13, 13)
+
+            # 绘制拇指 — 平滑过渡位置
+            thumb_color = QColor(theme.get("switch_thumb", "#3B82F6"))
+            if not self._is_checked:
+                thumb_color = QColor(theme.get("switch_thumb_disabled", "#94A3B8"))
+            painter.setBrush(thumb_color)
+
+            # 用 ease-out 缓动计算平滑位置
+            progress = min(max(self._anim_progress, 0.0), 1.0)
+            eased = 1.0 - (1.0 - progress) ** 3  # easeOutCubic
+            thumb_x = int(2 + eased * (self.width() - 26))
+            thumb_rect = QRect(thumb_x, 3, 20, 20)
+            painter.drawEllipse(thumb_rect)
+
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            pass
+
+    def sizeHint(self):
+        """推荐尺寸"""
+        return self.size()
 
 # ==================== 内置数据 ====================
 
@@ -103,6 +613,144 @@ def load_conversation(conv_id):
     with open(filepath, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
+# ==================== Diff 解析器 ====================
+
+class DiffParser:
+    """解析 git diff 输出，提取文件和行变更。"""
+
+    @staticmethod
+    def parse(diff_text):
+        """解析 git diff 文本，返回结构化数据。
+
+        返回:
+            list of dict: [
+                {
+                    "file": "main.py",
+                    "additions": 5,
+                    "deletions": 2,
+                    "hunks": [
+                        {
+                            "old_start": 10, "old_count": 3,
+                            "new_start": 10, "new_count": 6,
+                            "lines": [
+                                {"type": "unchanged", "text": "def foo():"},
+                                {"type": "added", "text": "    pass"},
+                                {"type": "removed", "text": "    return"},
+                            ]
+                        }
+                    ]
+                }
+            ]
+        """
+        files = []
+        current_file = None
+        current_hunk = None
+
+        for line in diff_text.split("\n"):
+            # 文件头：diff --git a/xxx b/xxx
+            if line.startswith("diff --git"):
+                if current_file:
+                    files.append(current_file)
+                # 提取文件名
+                parts = line.split(" ")
+                file_path = parts[-1][2:]  # 去掉 "b/"
+                current_file = {
+                    "file": file_path,
+                    "additions": 0,
+                    "deletions": 0,
+                    "hunks": [],
+                }
+                current_hunk = None
+                continue
+
+            # 二进制文件跳过
+            if "Binary files" in line:
+                if current_file:
+                    files.append(current_file)
+                    current_file = None
+                continue
+
+            # Hunk 头：@@ -old_start,old_count +new_start,new_count @@
+            if line.startswith("@@"):
+                try:
+                    m = line.split("@@")[1].strip()
+                    old_part, new_part = m.split(" ")[:2]
+                    old_start, old_count = DiffParser._parse_range(old_part)
+                    new_start, new_count = DiffParser._parse_range(new_part)
+                    current_hunk = {
+                        "old_start": old_start,
+                        "old_count": old_count,
+                        "new_start": new_start,
+                        "new_count": new_count,
+                        "lines": [],
+                    }
+                    if current_file:
+                        current_file["hunks"].append(current_hunk)
+                except (IndexError, ValueError):
+                    current_hunk = None
+                continue
+
+            # 内容行
+            if current_hunk and line:
+                if line[0] == "+":
+                    current_hunk["lines"].append({"type": "added", "text": line[1:]})
+                    if current_file:
+                        current_file["additions"] += 1
+                elif line[0] == "-":
+                    current_hunk["lines"].append({"type": "removed", "text": line[1:]})
+                    if current_file:
+                        current_file["deletions"] += 1
+                elif line[0] == " ":
+                    current_hunk["lines"].append({"type": "unchanged", "text": line[1:]})
+
+        # 最后一个文件
+        if current_file:
+            files.append(current_file)
+
+        return files
+
+    @staticmethod
+    def _parse_range(s):
+        """解析 '-10,5' -> (10, 5)"""
+        s = s[1:]  # 去掉前缀符号
+        if "," in s:
+            start, count = s.split(",")
+            return int(start), int(count)
+        return int(s), 1
+
+    @staticmethod
+    def get_diff_text(file_path, working_dir=None):
+        """执行 git diff 获取文本。"""
+        try:
+            cmd = ["git", "diff", "--no-color", "--", file_path]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=working_dir,
+                timeout=5,
+            )
+            return result.stdout if result.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, Exception):
+            return ""
+
+    @staticmethod
+    def get_all_diffs(working_dir=None):
+        """获取所有已修改文件的 diff。"""
+        try:
+            cmd = ["git", "diff", "--no-color"]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=working_dir,
+                timeout=10,
+            )
+            return result.stdout if result.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, Exception):
+            return ""
+
 def list_conversations():
     convs = []
     if not os.path.exists(DATA_DIR):
@@ -125,10 +773,14 @@ class GitWorker(QObject):
     files_ready = pyqtSignal(list)
     status_ready = pyqtSignal(dict)
 
+    def __init__(self, project_dir=None):
+        super().__init__()
+        self.project_dir = project_dir or os.getcwd()
+
     @pyqtSlot()
     def fetch_files(self):
         try:
-            r = subprocess.run(["git", "ls-files"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run(["git", "ls-files"], capture_output=True, text=True, timeout=5, cwd=self.project_dir)
             if r.returncode == 0:
                 files = [f for f in r.stdout.strip().split("\n") if f]
                 self.files_ready.emit(files)
@@ -140,7 +792,7 @@ class GitWorker(QObject):
     @pyqtSlot()
     def fetch_status(self):
         try:
-            r = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5, cwd=self.project_dir)
             if r.returncode == 0:
                 result = {"modified": [], "added": [], "deleted": []}
                 for line in r.stdout.strip().split("\n"):
@@ -161,219 +813,202 @@ class GitWorker(QObject):
         self.status_ready.emit({"modified": [], "added": [], "deleted": []})
 
 
-class ClaudeWorker(QObject):
-    """后台执行 claude 命令，流式输出。"""
-    chunk_ready = pyqtSignal(str)           # 流式文本片段
-    result_ready = pyqtSignal(str)          # 最终结果
-    session_ready = pyqtSignal(str)         # session_id（新对话首次创建）
-    thinking_started = pyqtSignal()         # 开始思考
-    thinking_ready = pyqtSignal(str, int)   # 单段思考完成（文本, 用时ms）
-    status_update = pyqtSignal(str)         # 过程状态（用于前端反馈）
-    error_occurred = pyqtSignal(str)
-    stopped = pyqtSignal()                  # 用户主动终止
+SDK_SAFE_TOOLS = {
+    "ToolSearch", "Glob", "Grep", "Read", "LSP",
+    "ListMcpResourcesTool", "ReadMcpResourceTool",
+    "TodoWrite", "TaskCreate", "TaskGet", "TaskUpdate", "TaskList",
+    "TaskStop", "TaskOutput",
+    "AskUserQuestion", "EnterPlanMode", "ExitPlanMode",
+    "SendMessage", "Sleep",
+}
 
-    def __init__(self, prompt, model, session_id=None, permission_mode="default"):
+
+class SDKClaudeWorker(QObject):
+    """基于 claude-agent-sdk 的后台 Worker，支持真正的权限拦截。
+
+    替代旧 ClaudeWorker（subprocess CLI 方案）。
+    信号接口与旧类完全一致，MainWindow 无需改动。
+    """
+    chunk_ready = pyqtSignal(str)
+    result_ready = pyqtSignal(str)
+    session_ready = pyqtSignal(str)
+    thinking_started = pyqtSignal()
+    thinking_ready = pyqtSignal(str, int)
+    status_update = pyqtSignal(str)
+    error_occurred = pyqtSignal(str)
+    stopped = pyqtSignal()
+    tool_update = pyqtSignal(object)
+    # 新增：权限请求信号（主线程弹出权限条后调用 set_permission_decision）
+    permission_request = pyqtSignal(str, dict)
+
+    def __init__(self, prompt, model, session_id=None, permission_mode="default", project_dir=None):
         super().__init__()
         self.prompt = prompt
         self.model = model
-        self.session_id = session_id  # 已有 session 则传入 --resume 续接
+        self.session_id = session_id
         self.permission_mode = permission_mode or "default"
+        self.project_dir = project_dir or os.getcwd()
         self._stop_requested = False
-        self._proc = None
+        self._permission_decision = None
+        self._permission_event = threading.Event()
+        # SDK 权限回调由 SDK 内部线程调用，需要桥接到 Qt 主线程
+        self._client = None
 
     def stop(self):
-        """用户主动终止 Claude 回复。"""
         self._stop_requested = True
-        if self._proc and self._proc.poll() is None:
-            self._proc.kill()
+        if self._client:
+            # interrupt 必须在 async 上下文中调用，这里只设标志位
+            # 实际中断由 _async_run 循环检测
+            pass
 
-    @pyqtSlot()
+    def set_permission_decision(self, decision: str):
+        """由主线程调用，设置权限决策并唤醒等待中的 can_use_tool 回调。"""
+        self._permission_decision = decision
+        self._permission_event.set()
+
     def run(self):
+        anyio.run(self._async_run)
+
+    async def _async_run(self):
+
+        # can_use_tool 要求 prompt 为 AsyncIterable，不能是纯字符串
+        async def prompt_stream():
+            return
+            yield {}
+
+        options = ClaudeAgentOptions(
+            model=self.model,
+            cwd=self.project_dir,
+            permission_mode=self.permission_mode,
+            can_use_tool=self._can_use_tool,
+            include_partial_messages=True,
+        )
+        if self.session_id:
+            options.resume = self.session_id
+            options.continue_conversation = True
+
+        self._client = ClaudeSDKClient(options=options)
         try:
-            cmd = [
-                "claude", "-p", self.prompt,
-                "--model", self.model,
-                "--output-format", "stream-json",
-                "--include-partial-messages",
-                "--verbose",
-                "--permission-mode", self.permission_mode,
-            ]
-            # 如果有 session_id，续接该会话
-            if self.session_id:
-                cmd.extend(["--resume", self.session_id])
-                print(f"[ClaudeWorker] 续接 session: {self.session_id}")
-            else:
-                print(f"[ClaudeWorker] 新对话")
-
-            print(f"\n{'='*60}")
-            print(f"[USER] {self.prompt}")
-            print(f"{'='*60}")
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # 合并输出，避免 stderr 阻塞
-            )
-            self._proc = proc
-
-            # 用 TextIOWrapper 处理行缓冲
-            import io
-            import time
-            stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", line_buffering=True)
-
-            full_text = ""          # 累积正式回复文本
-            thinking_text = ""      # 累积思考内容
-            thinking_start_time = 0 # 思考开始时间戳
-            thinking_emitted = False # 防止同一消息重复触发思考信号
-
-            while True:
+            await self._client.connect(prompt_stream)
+            # 发送用户消息
+            await self._client.query(self.prompt)
+            # 接收响应
+            async for msg in self._client.receive_response():
                 if self._stop_requested:
-                    print(f"[ClaudeWorker] 收到停止请求")
-                    proc.kill()
+                    await self._client.interrupt()
                     self.stopped.emit()
                     return
-                if proc.poll() is not None:
-                    # 进程已退出
-                    break
-                line = stdout.readline()
-                if not line:
-                    # EOF
-                    break
-                decoded = line.strip()
-                if not decoded:
-                    continue
-
-                try:
-                    obj = json.loads(decoded)
-                except json.JSONDecodeError:
-                    continue
-
-                msg_type = obj.get("type", "")
-
-                # 系统初始化信息
-                if msg_type == "system":
-                    sub = obj.get("subtype", "")
-                    if sub == "init":
-                        session_id = obj.get("session_id", "")
-                        model_info = obj.get("model", "")
-                        version = obj.get("claude_code_version", "")
-                        print(f"[SYSTEM] session={session_id} model={model_info} version={version}")
-                        # 新对话：回传 session_id 给主线程保存
-                        if session_id:
-                            self.session_ready.emit(session_id)
-                    elif sub == "status":
-                        status_text = obj.get("status", "")
-                        print(f"[SYSTEM] status={status_text}")
-                        if status_text:
-                            self.status_update.emit(f"状态: {status_text}")
-                    elif sub == "api_retry":
-                        attempt = obj.get("attempt", 0)
-                        max_retries = obj.get("max_retries", 0)
-                        error = obj.get("error", "")
-                        delay_ms = obj.get("retry_delay_ms", 0)
-                        print(f"[SYSTEM] api_retry attempt={attempt}/{max_retries} error={error} delay={delay_ms:.0f}ms")
-                        self.status_update.emit(f"接口重试: 第{attempt}/{max_retries}次")
-
-                # 流式事件
-                elif msg_type == "stream_event":
-                    event = obj.get("event", {})
-                    event_type = event.get("type", "")
-
-                    if event_type == "message_start":
-                        msg_id = event.get("message", {}).get("id", "")
-                        print(f"[EVENT] message_start id={msg_id[:16]}...")
-                        thinking_emitted = False
-                        self.status_update.emit("开始生成回复")
-
-                    elif event_type == "content_block_start":
-                        block = event.get("content_block", {})
-                        block_type = block.get("type", "")
-                        print(f"[EVENT] content_block_start index={event.get('index', '')} type={block_type}")
-
-                        if block_type == "thinking":
-                            thinking_start_time = time.time()
-                            thinking_text = ""
-                            self.thinking_started.emit()
-                            self.status_update.emit("正在深度思考")
-                        elif block_type == "tool_use":
-                            self.status_update.emit("正在调用工具")
-                        elif block_type == "text":
-                            self.status_update.emit("正在组织输出")
-
-                    elif event_type == "content_block_delta":
-                        delta = event.get("delta", {})
-                        delta_type = delta.get("type", "")
-                        if delta_type == "text_delta":
-                            text = delta.get("text", "")
-                            full_text += text
-                            self.chunk_ready.emit(full_text)
-                        elif delta_type == "thinking_delta":
-                            thinking_text += delta.get("thinking", "")
-
-                    elif event_type == "content_block_stop":
-                        # 思考块结束：计算用时，回传思考内容
-                        # 加防重标志，避免 text block 的 stop 误触发
-                        if thinking_text and thinking_start_time > 0 and not thinking_emitted:
-                            duration_ms = int((time.time() - thinking_start_time) * 1000)
-                            preview = thinking_text[:100].replace("\n", " ")
-                            print(f"[THINKING] {preview}... ({duration_ms}ms)")
-                            self.thinking_ready.emit(thinking_text, duration_ms)
-                            thinking_emitted = True
-                            thinking_text = ""
-                            thinking_start_time = 0
-                            self.status_update.emit("思考完成，继续处理")
-
-                    elif event_type == "message_delta":
-                        stop = event.get("delta", {}).get("stop_reason", "")
-                        usage = event.get("delta", {}).get("usage", {})
-                        output_tokens = usage.get("output_tokens", 0)
-                        print(f"[EVENT] message_delta stop={stop} output_tokens={output_tokens}")
-
-                    elif event_type == "message_stop":
-                        print(f"[EVENT] message_stop")
-
-                # 最终结果
-                elif msg_type == "result":
-                    result_text = obj.get("result", "")
-                    is_error = obj.get("is_error", False)
-                    duration = obj.get("duration_ms", 0)
-                    cost = obj.get("total_cost_usd", 0)
-                    usage = obj.get("usage", {})
-                    input_tokens = usage.get("input_tokens", 0)
-                    output_tokens = usage.get("output_tokens", 0)
-                    stop_reason = obj.get("stop_reason", "")
-                    terminal_reason = obj.get("terminal_reason", "")
-
-                    print(f"\n[AI] {result_text}")
-                    print(f"{'='*60}")
-                    print(f"[RESULT] success={not is_error} duration={duration}ms cost=${cost:.6f}")
-                    print(f"[RESULT] tokens=输入{input_tokens}/输出{output_tokens} stop={stop_reason}({terminal_reason})")
-                    print(f"{'='*60}\n")
-
-                    if result_text and not is_error:
-                        self.result_ready.emit(result_text)
-                    else:
-                        if is_error:
-                            self.error_occurred.emit(result_text or "未知错误")
-                        else:
-                            self.result_ready.emit(full_text)
-                    return
-
-            # 如果没有收到 result 消息但有累积文本，检查退出码
-            if self._stop_requested:
-                # 用户主动终止，不触发 result/error 信号，直接返回
-                self.stopped.emit()
-                return
-            if full_text:
-                proc.wait()
-                if proc.returncode == 0:
-                    self.result_ready.emit(full_text)
-                else:
-                    self.error_occurred.emit(f"进程异常退出 (code: {proc.returncode})")
-
+                await self._handle_message(msg)
         except Exception as e:
-            print(f"[ClaudeWorker] 错误: {e}")
+            print(f"[SDKClaudeWorker] 错误: {e}")
             self.error_occurred.emit(str(e))
+        finally:
+            await self._client.disconnect()
+            self._client = None
+
+    async def _handle_message(self, msg):
+        """将 SDK 消息映射到现有信号。"""
+        import time
+
+        if isinstance(msg, SystemMessage):
+            if msg.subtype == "init":
+                sid = msg.data.get("session_id", "")
+                model_info = msg.data.get("model", "")
+                print(f"[SYSTEM] session={sid} model={model_info}")
+                if sid:
+                    self.session_ready.emit(sid)
+            elif msg.subtype == "status":
+                status_text = msg.data.get("status", "")
+                if status_text:
+                    self.status_update.emit(f"状态: {status_text}")
+            elif msg.subtype == "api_retry":
+                attempt = msg.data.get("attempt", 0)
+                max_retries = msg.data.get("max_retries", 0)
+                self.status_update.emit(f"接口重试: 第{attempt}/{max_retries}次")
+
+        elif isinstance(msg, StreamEvent):
+            event = msg.event
+            event_type = event.get("type", "")
+
+            if event_type == "message_start":
+                self.status_update.emit("开始生成回复")
+
+            elif event_type == "content_block_start":
+                block = event.get("content_block", {})
+                block_type = block.get("type", "")
+                if block_type == "thinking":
+                    self.thinking_started.emit()
+                    self.status_update.emit("正在深度思考")
+                elif block_type == "tool_use":
+                    tool_name = block.get("name", "unknown")
+                    tool_params = block.get("input", {})
+                    self.tool_update.emit({
+                        "index": event.get("index", 0),
+                        "tool": tool_name,
+                        "params": tool_params,
+                        "status": "running",
+                        "time": time.time(),
+                    })
+                    self.status_update.emit(f"正在调用 {tool_name}")
+                elif block_type == "text":
+                    self.status_update.emit("正在组织输出")
+
+            elif event_type == "content_block_delta":
+                delta = event.get("delta", {})
+                delta_type = delta.get("type", "")
+                if delta_type == "text_delta":
+                    self.chunk_ready.emit(delta.get("text", ""))
+
+            elif event_type == "content_block_stop":
+                pass  # 思考/工具的完成信息在 AssistantMessage 中处理
+
+        elif isinstance(msg, AssistantMessage):
+            for block in msg.content:
+                if isinstance(block, TextBlock):
+                    self.chunk_ready.emit(block.text)
+                elif isinstance(block, ThinkingBlock):
+                    self.thinking_ready.emit(block.thinking, 0)
+
+        elif isinstance(msg, ResultMessage):
+            if msg.is_error:
+                self.error_occurred.emit(msg.result or "未知错误")
+            else:
+                self.result_ready.emit(msg.result or "")
+
+    async def _can_use_tool(self, tool_name, input_data, context):
+        # 安全工具自动放行
+        if tool_name in SDK_SAFE_TOOLS:
+            return PermissionResultAllow()
+
+        # 构建权限摘要
+        summary = f"权限申请：{tool_name}"
+        if tool_name == "Write":
+            fp = input_data.get("file_path", "")
+            if fp:
+                summary += f"\n{fp}"
+        elif tool_name == "Bash":
+            cmd = input_data.get("command", "")
+            if cmd:
+                summary += f"\n{cmd}"
+
+        print(f"[SDKClaudeWorker] {summary}")
+
+        # 通过 pyqtSignal 通知主线程弹出权限条
+        # 注意：这里在 async 上下文中，pyqtSignal 会通过 Qt 的 queued connection
+        # 自动桥接到主线程
+        self._permission_decision = None
+        self._permission_event.clear()
+        self.permission_request.emit(tool_name, input_data)
+
+        # 等待用户决策（超时 5 分钟）
+        allowed = await anyio.to_thread.run_sync(
+            lambda: self._permission_event.wait(timeout=300)
+        )
+
+        if allowed and self._permission_decision == "allow":
+            return PermissionResultAllow()
+        else:
+            return PermissionResultDeny(message="用户拒绝权限")
 
 
 class TitleWorker(QThread):
@@ -419,16 +1054,94 @@ class TitleWorker(QThread):
             print(f"[TitleWorker] 异常: {e}")
 
 
+# ==================== Markdown 渲染 ====================
+
+class MarkdownRenderer:
+    """将 Markdown 文本转换为 Qt 可渲染的 HTML。"""
+
+    @classmethod
+    def to_html(cls, text, theme=None):
+        """将 Markdown 文本转为 HTML 字符串。"""
+        if not text or not text.strip():
+            return ""
+        if mistune is None:
+            return cls._escape_html(text)
+        try:
+            # 使用 mistune v3 API
+            md = mistune.create_markdown()
+            html = md(text)
+            return cls._style_html(html, theme)
+        except Exception:
+            return cls._escape_html(text)
+
+    @classmethod
+    def _style_html(cls, html, theme=None):
+        """为 HTML 添加主题样式。"""
+        if theme is None:
+            theme = theme_manager.get_current_theme()
+
+        bg_code = theme.get('bg_card', '#2A2A2A')
+        bg_code_block = theme.get('bg_secondary', '#1A1A1A')
+        border_code = theme.get('border', '#333333')
+        text_primary = theme.get('text_primary', '#EAEAEA')
+        text_secondary = theme.get('text_secondary', '#A0A0A0')
+        primary = theme.get('primary', '#818CF8')
+        green = theme.get('green', '#34D399')
+
+        # 替换代码块样式
+        html = html.replace('<code>', f'<code style="background-color:{bg_code}; padding:2px 5px; border-radius:4px; font-family:Menlo,Monaco,Courier,monospace; font-size:12px;">')
+        html = html.replace('<pre><code>', f'<pre style="background-color:{bg_code_block}; padding:12px; border-radius:8px; overflow-x:auto; border:1px solid {border_code}; margin:8px 0;"><code style="background:none; padding:0;">')
+        html = html.replace('</code></pre>', '</code></pre>')
+
+        # 标题样式
+        html = html.replace('<h1>', f'<h1 style="font-size:20px; font-weight:bold; margin:12px 0 8px 0; color:{text_primary};">')
+        html = html.replace('<h2>', f'<h2 style="font-size:18px; font-weight:bold; margin:10px 0 6px 0; color:{text_primary};">')
+        html = html.replace('<h3>', f'<h3 style="font-size:16px; font-weight:bold; margin:8px 0 4px 0; color:{text_primary};">')
+
+        # 链接样式
+        html = html.replace('<a ', f'<a style="color:{primary}; text-decoration:underline;" ')
+
+        # 引用块
+        html = html.replace('<blockquote>', f'<blockquote style="border-left:3px solid {primary}; padding-left:12px; margin:8px 0; color:{text_secondary};">')
+
+        # 列表
+        html = html.replace('<ul>', '<ul style="padding-left:20px; margin:6px 0;">')
+        html = html.replace('<ol>', '<ol style="padding-left:20px; margin:6px 0;">')
+        html = html.replace('<li>', f'<li style="margin:3px 0; color:{text_primary};">')
+
+        # 水平线
+        html = html.replace('<hr />', f'<hr style="border:none; border-top:1px solid {border_code}; margin:10px 0;" />')
+
+        # 表格
+        html = html.replace('<table>', f'<table style="border-collapse:collapse; margin:8px 0; width:100%;">')
+        html = html.replace('<th>', f'<th style="border:1px solid {border_code}; padding:6px 10px; background-color:{bg_code_block}; font-weight:bold; color:{text_primary};">')
+        html = html.replace('<td>', f'<td style="border:1px solid {border_code}; padding:6px 10px; color:{text_primary};">')
+        html = html.replace('<tr>', '<tr>')
+        html = html.replace('</tr>', '</tr>')
+
+        return html
+
+    @classmethod
+    def _escape_html(cls, text):
+        """简单的 HTML 转义（mistune 不可用时使用）。"""
+        return (text
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('\n', '<br>'))
+
+
 # ==================== 消息气泡 ====================
 
 class MessageRow(QWidget):
-    """消息气泡，QLabel 支持文字选择复制。"""
+    """消息气泡，支持 Markdown 渲染的文字选择复制。"""
 
     def __init__(self, role, text, parent=None):
         super().__init__(parent)
         self.role = role
         self._thinking_dots = 0
         self._is_thinking = False
+        self._raw_text = text  # 保存原始 Markdown 文本
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 2, 8, 2)
@@ -436,7 +1149,8 @@ class MessageRow(QWidget):
 
         bubble = QFrame()
         bubble.setObjectName("bubble")
-        bubble.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        # 不设置固定宽度，让内容自然撑开
+        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         bubble_layout = QVBoxLayout(bubble)
         bubble_layout.setContentsMargins(0, 0, 0, 0)
@@ -447,24 +1161,34 @@ class MessageRow(QWidget):
         prefix_label.setStyleSheet("font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px;")
         bubble_layout.addWidget(prefix_label)
 
-        content = QLabel(text)
-        content.setWordWrap(True)
-        content.setStyleSheet("font-size: 13px; padding: 4px 10px 8px 10px;")
+        # 使用 QTextEdit 替代 QLabel，支持 HTML/Markdown 渲染
+        content = QTextEdit()
+        content.setReadOnly(True)
+        content.setFrameShape(QTextEdit.Shape.NoFrame)
+        content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content.setWordWrapMode(QTextOption.WrapMode.WordWrap)
+        content.setMinimumWidth(180)
+        content.setMaximumWidth(550)
+        # 去掉 QTextEdit 默认的内边距
+        content.document().setDocumentMargin(0)
+        # 初始用纯文本显示（流式输出期间不渲染 Markdown）
+        content.setPlainText(text)
+        content.setStyleSheet("font-size: 13px; padding: 4px 10px 8px 10px; background-color: transparent;")
         content.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
         bubble_layout.addWidget(content)
 
-        # 样式 — 深色主题
+        # 样式 — 根据当前主题动态配色
         if role == "user":
             bubble.setStyleSheet(f"""
                 #bubble {{
                     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {THEME['user_bubble']}, stop:1 #162923);
+                        stop:0 {THEME['user_bubble']}, stop:1 {THEME['user_bubble_gradient_end']});
                     border-radius: 12px;
-                    border: 1px solid #2D4A3A;
                 }}
-                #bubble QLabel {{ color: {THEME['user_text']}; background: transparent; }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['user_text']}; background: transparent; }}
             """)
             layout.addStretch()
             layout.addWidget(bubble)
@@ -474,7 +1198,7 @@ class MessageRow(QWidget):
                     background-color: {THEME['system_bubble']}; border-radius: 12px;
                     border: 1px solid #2D3A4A;
                 }}
-                #bubble QLabel {{ color: {THEME['system_text']}; background: transparent; }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['system_text']}; background: transparent; }}
             """)
             layout.addWidget(bubble)
             layout.addStretch()
@@ -482,14 +1206,15 @@ class MessageRow(QWidget):
             bubble.setStyleSheet(f"""
                 #bubble {{
                     background-color: {THEME['ai_bubble']}; border-radius: 12px;
-                    border: 1px solid {THEME['border']};
                 }}
-                #bubble QLabel {{ color: {THEME['ai_text']}; background: transparent; }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['ai_text']}; background: transparent; }}
             """)
             layout.addWidget(bubble)
             layout.addStretch()
 
         self._content_label = content
+        self._bubble = bubble
+        self._prefix_label = prefix_label
 
         # 如果是 AI 消息，启动思考动画
         if role == "assistant" and text == "思考中...":
@@ -509,7 +1234,7 @@ class MessageRow(QWidget):
             return
         self._thinking_dots = (self._thinking_dots + 1) % 4
         dots = "." * self._thinking_dots
-        self._content_label.setText(f"🤔 思考中{dots}")
+        self._content_label.setPlainText(f"🤔 思考中{dots}")
 
     def _start_processing_animation(self, base_text):
         """启动处理中动画（转圈）。"""
@@ -530,22 +1255,29 @@ class MessageRow(QWidget):
     def _update_processing(self):
         frame = self._processing_frames[self._processing_idx % len(self._processing_frames)]
         self._processing_idx += 1
-        # 展示 “◐ 处理中：xxx”
-        self._content_label.setText(f"{frame} {self._processing_base_text}")
+        # 展示 "◐ 处理中：xxx"
+        self._content_label.setPlainText(f"{frame} {self._processing_base_text}")
 
     def _type_next_char(self):
-        """打字机动画：每次显示一个字符。"""
+        """打字机动画：每次显示 2-3 个字符，加速打字效果。"""
         if not hasattr(self, '_target_text'):
             return
-        self._displayed_chars += 1
+        self._displayed_chars += random.randint(2, 3)
         if self._displayed_chars >= len(self._target_text):
-            # 动画完成
-            self._content_label.setText(self._target_text)
+            # 动画完成，渲染 Markdown
+            self._displayed_chars = len(self._target_text)
+            self._raw_text = self._target_text
+            html = MarkdownRenderer.to_html(self._target_text)
+            if html:
+                self._content_label.setHtml(html)
+            else:
+                self._content_label.setPlainText(self._target_text)
             if hasattr(self, '_type_timer'):
                 self._type_timer.stop()
                 del self._type_timer
             return
-        self._content_label.setText(self._target_text[:self._displayed_chars])
+        # 动画期间用纯文本
+        self._content_label.setPlainText(self._target_text[:self._displayed_chars])
 
     def update_text(self, text):
         """更新消息文字（用于流式输出）。"""
@@ -573,28 +1305,82 @@ class MessageRow(QWidget):
                 self._type_timer.stop()
             self._type_timer = QTimer()
             self._type_timer.timeout.connect(self._type_next_char)
-            self._type_timer.start(20)  # 每字 20ms（约 50 字/秒）
+            self._type_timer.start(20)
             return
         # 非思考状态，直接显示或继续动画
-        current = self._content_label.text()
-        if text == current:
+        current_plain = self._content_label.toPlainText()
+        if text == current_plain:
             return
-        if len(text) <= len(current):
-            self._content_label.setText(text)
+        if len(text) <= len(current_plain):
+            # 更短的文本，直接用 HTML 渲染
+            self._raw_text = text
+            html = MarkdownRenderer.to_html(text)
+            if html:
+                self._content_label.setHtml(html)
+            else:
+                self._content_label.setPlainText(text)
             return
         # 新的更长文本，继续动画
         self._target_text = text
         if not hasattr(self, '_type_timer') or not self._type_timer.isActive():
-            self._displayed_chars = len(current)
+            self._displayed_chars = len(current_plain)
             self._type_timer = QTimer()
             self._type_timer.timeout.connect(self._type_next_char)
             self._type_timer.start(20)
 
     def get_text(self):
-        """获取当前显示文本。"""
+        """获取当前显示的原始文本。"""
         if not hasattr(self, '_content_label'):
             return ""
-        return self._content_label.text()
+        return getattr(self, '_raw_text', '') or self._content_label.toPlainText()
+
+    def update_theme(self):
+        """更新消息气泡主题。"""
+        theme = theme_manager.get_current_theme()
+        if not hasattr(self, '_bubble') or self._bubble is None:
+            return
+
+        if self.role == "user":
+            self._bubble.setStyleSheet(f"""
+                #bubble {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {theme['user_bubble']}, stop:1 {theme['user_bubble_gradient_end']});
+                    border-radius: 12px;
+                }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {theme['user_text']}; background: transparent; }}
+            """)
+        elif self.role == "system":
+            self._bubble.setStyleSheet(f"""
+                #bubble {{
+                    background-color: {theme['system_bubble']}; border-radius: 12px;
+                }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {theme['system_text']}; background: transparent; }}
+            """)
+        else:
+            self._bubble.setStyleSheet(f"""
+                #bubble {{
+                    background-color: {theme['ai_bubble']}; border-radius: 12px;
+                }}
+                #bubble QLabel, #bubble QTextEdit {{ color: {theme['ai_text']}; background: transparent; }}
+            """)
+
+        if hasattr(self, '_prefix_label') and self._prefix_label is not None:
+            self._prefix_label.setStyleSheet(
+                f"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; "
+                f"color: {theme['text_primary']};"
+            )
+
+        # 重新渲染 Markdown（仅对动画已完成的 AI 消息）
+        if self.role == "assistant" and hasattr(self, '_raw_text') and self._raw_text:
+            if not hasattr(self, '_type_timer') or not self._type_timer.isActive():
+                html = MarkdownRenderer.to_html(self._raw_text, theme)
+                if html and hasattr(self, '_content_label') and self._content_label is not None:
+                    self._content_label.setHtml(html)
+            if hasattr(self, '_prefix_label') and self._prefix_label is not None:
+                self._prefix_label.setStyleSheet(
+                    f"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; "
+                    f"color: {theme['text_primary']};"
+                )
 
 
 class ThinkingBlock(QFrame):
@@ -647,9 +1433,13 @@ class ThinkingBlock(QFrame):
         c_layout.setContentsMargins(10, 0, 10, 8)
         c_layout.setSpacing(0)
 
-        self._content_label = QLabel("")
-        self._content_label.setWordWrap(True)
-        self._content_label.setStyleSheet(f"font-size: 12px; color: {THEME['text_secondary']}; line-height: 1.6;")
+        self._content_label = QTextEdit()
+        self._content_label.setReadOnly(True)
+        self._content_label.setFrameShape(QTextEdit.Shape.NoFrame)
+        self._content_label.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._content_label.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._content_label.setWordWrapMode(QTextOption.WrapMode.WordWrap)
+        self._content_label.setStyleSheet(f"font-size: 12px; color: {THEME['text_secondary']}; background-color: transparent;")
         self._content_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
@@ -658,11 +1448,10 @@ class ThinkingBlock(QFrame):
         self._content_frame.setVisible(False)
         layout.addWidget(self._content_frame)
 
-        # 样式 — 深色主题
+        # 样式 — 深色主题（无边框）
         self.setStyleSheet(f"""
             #thinkingBlock {{
                 background-color: {THEME['thinking_bg']};
-                border: 1px solid {THEME['thinking_border']};
                 border-radius: 10px; margin: 2px 0;
             }}
             #thinkingHeader {{ background-color: transparent; }}
@@ -698,7 +1487,12 @@ class ThinkingBlock(QFrame):
             parts.append(f"[第{idx}段 | 用时 {self._format_duration(entry['duration_ms'])}]")
             parts.append(entry["text"])
             parts.append("")
-        self._content_label.setText("\n".join(parts).strip())
+        raw_text = "\n".join(parts).strip()
+        html = MarkdownRenderer.to_html(raw_text)
+        if html:
+            self._content_label.setHtml(html)
+        else:
+            self._content_label.setPlainText(raw_text)
         self._refresh_header()
 
     def _refresh_header(self):
@@ -734,6 +1528,29 @@ class ThinkingBlock(QFrame):
             parts.append(f"{millis}毫秒")
         return "".join(parts) if parts else "0毫秒"
 
+    def update_theme(self):
+        """更新思考块主题。"""
+        theme = theme_manager.get_current_theme()
+        self.setStyleSheet(f"""
+            #thinkingBlock {{
+                background-color: {theme['thinking_bg']};
+                border-radius: 10px; margin: 2px 0;
+            }}
+            #thinkingHeader {{ background-color: transparent; }}
+            #thinkingContent {{ background-color: transparent; }}
+        """)
+        if hasattr(self, '_title_label') and self._title_label is not None:
+            self._title_label.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {theme['text_secondary']};")
+        if hasattr(self, '_duration_label') and self._duration_label is not None:
+            self._duration_label.setStyleSheet(f"font-size: 12px; color: {theme['text_tertiary']};")
+        if hasattr(self, '_arrow_label') and self._arrow_label is not None:
+            self._arrow_label.setStyleSheet(f"font-size: 10px; color: {theme['text_tertiary']};")
+        if hasattr(self, '_content_label') and self._content_label is not None:
+            self._content_label.setStyleSheet(f"font-size: 12px; color: {theme['text_secondary']}; background-color: transparent;")
+            # 重新渲染 Markdown
+            if hasattr(self, '_entries') and self._entries:
+                self._refresh_content()
+
 
 class ThinkingRow(QWidget):
     """思考行容器，包含一个 ThinkingBlock。"""
@@ -753,6 +1570,268 @@ class ThinkingRow(QWidget):
     def set_in_progress(self, in_progress):
         self._block.set_in_progress(in_progress)
 
+    def update_theme(self):
+        """更新思考行主题。"""
+        if hasattr(self, '_block') and self._block is not None and hasattr(self._block, 'update_theme'):
+            self._block.update_theme()
+
+
+# ==================== DiffCard（代码对比卡片）====================
+
+class DiffFileCard(QFrame):
+    """单个文件的 diff 卡片（可折叠）。"""
+
+    def __init__(self, file_info, parent=None):
+        super().__init__(parent)
+        self._expanded = False
+        self.setObjectName("diffFileCard")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 标题栏
+        self._title_bar = QFrame()
+        self._title_bar.setFixedHeight(36)
+        self._title_bar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_card']};
+                border-radius: 8px;
+            }}
+        """)
+        title_layout = QHBoxLayout(self._title_bar)
+        title_layout.setContentsMargins(12, 4, 12, 4)
+        title_layout.setSpacing(8)
+
+        # 折叠箭头
+        self._arrow = QLabel("▶")
+        self._arrow.setStyleSheet(f"color: {THEME['text_tertiary']}; font-size: 12px;")
+        title_layout.addWidget(self._arrow)
+
+        # 文件名
+        self._name_label = QLabel(file_info["file"])
+        self._name_label.setStyleSheet(f"color: {THEME['text_primary']}; font-size: 13px; font-weight: bold;")
+        title_layout.addWidget(self._name_label)
+
+        # 变更统计
+        self._add_label = None
+        self._del_label = None
+        if file_info["additions"] > 0:
+            self._add_label = QLabel(f"+{file_info['additions']}")
+            self._add_label.setStyleSheet(f"color: {THEME['green']}; font-size: 12px; font-weight: bold;")
+            title_layout.addWidget(self._add_label)
+        if file_info["deletions"] > 0:
+            self._del_label = QLabel(f"-{file_info['deletions']}")
+            self._del_label.setStyleSheet(f"color: {THEME['red']}; font-size: 12px; font-weight: bold;")
+            title_layout.addWidget(self._del_label)
+
+        title_layout.addStretch()
+        layout.addWidget(self._title_bar)
+
+        # 内容区（默认隐藏）
+        self._content = QFrame()
+        self._content.setVisible(False)
+        self._content.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_primary']};
+                border-radius: 0 0 8px 8px;
+            }}
+        """)
+        content_layout = QVBoxLayout(self._content)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setSpacing(1)
+
+        # 构建 diff 行
+        self._build_lines(content_layout, file_info["hunks"])
+
+        layout.addWidget(self._content)
+
+        # 点击标题栏切换
+        self._title_bar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._title_bar.mousePressEvent = lambda e: self._toggle()
+
+    def _build_lines(self, layout, hunks):
+        """构建 diff 行列表。"""
+        self._diff_lines = []  # 跟踪所有行 label，用于主题切换
+        max_lines = 500  # 最大显示行数，避免卡死
+
+        for hunk in hunks:
+            # Hunk 头
+            hunk_label = QLabel(
+                f"@@ -{hunk['old_start']},{hunk['old_count']} "
+                f"+{hunk['new_start']},{hunk['new_count']} @@"
+            )
+            self._diff_lines.append(hunk_label)
+            hunk_label.setStyleSheet(
+                f"color: {THEME['text_tertiary']}; font-size: 12px; "
+                f"font-family: monospace; padding: 2px 0;"
+            )
+            layout.addWidget(hunk_label)
+
+            for line_info in hunk["lines"]:
+                if layout.count() > max_lines:
+                    # 截断显示
+                    more_label = QLabel("... (更多变更)")
+                    self._diff_lines.append(more_label)
+                    more_label.setStyleSheet(
+                        f"color: {THEME['text_tertiary']}; font-size: 12px; "
+                        f"font-style: italic; padding: 4px 0;"
+                    )
+                    layout.addWidget(more_label)
+                    break
+
+                line_label = QLabel()
+                self._diff_lines.append(line_label)
+                line_label.setWordWrap(False)
+                line_label.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse
+                )
+
+                if line_info["type"] == "added":
+                    line_label.setText(f"+ {line_info['text']}")
+                    bg = "#1A3320"
+                    fg = THEME["green"]
+                elif line_info["type"] == "removed":
+                    line_label.setText(f"- {line_info['text']}")
+                    bg = "#3B1F1F"
+                    fg = THEME["red"]
+                else:
+                    line_label.setText(f"  {line_info['text']}")
+                    bg = THEME["bg_secondary"]
+                    fg = THEME["text_tertiary"]
+
+                line_label.setStyleSheet(
+                    f"background-color: {bg}; color: {fg}; "
+                    f"font-family: monospace; font-size: 12px; "
+                    f"padding: 1px 6px; border-radius: 2px; line-height: 18px;"
+                )
+                layout.addWidget(line_label)
+
+            # Hunk 间加分隔
+            layout.addSpacing(4)
+
+        layout.addStretch()
+
+    def _toggle(self):
+        self._expanded = not self._expanded
+        self._content.setVisible(self._expanded)
+        self._arrow.setText("▼" if self._expanded else "▶")
+        # 通知父级重新计算滚动高度
+        if self.parent():
+            QTimer.singleShot(10, lambda: self.parent().adjustSize())
+
+    def update_theme(self):
+        """更新 diff 文件卡片主题。"""
+        theme = theme_manager.get_current_theme()
+        if hasattr(self, '_title_bar') and self._title_bar is not None:
+            self._title_bar.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_card']};
+                    border-radius: 8px;
+                }}
+            """)
+        if hasattr(self, '_arrow') and self._arrow is not None:
+            self._arrow.setStyleSheet(f"color: {theme['text_tertiary']}; font-size: 12px;")
+        if hasattr(self, '_name_label') and self._name_label is not None:
+            self._name_label.setStyleSheet(f"color: {theme['text_primary']}; font-size: 13px; font-weight: bold;")
+        if hasattr(self, '_add_label'):
+            self._add_label.setStyleSheet(f"color: {theme['green']}; font-size: 12px; font-weight: bold;")
+        if hasattr(self, '_del_label'):
+            self._del_label.setStyleSheet(f"color: {theme['red']}; font-size: 12px; font-weight: bold;")
+        if hasattr(self, '_content'):
+            self._content.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_primary']};
+                    border-radius: 0 0 8px 8px;
+                }}
+            """)
+        # 更新所有 diff 行标签颜色
+        if hasattr(self, '_diff_lines'):
+            for label in self._diff_lines:
+                text = label.text()
+                if text.startswith("+ ") or text.startswith("+"):
+                    label.setStyleSheet(f"""
+                        background-color: #1A3320; color: {theme['green']};
+                        font-family: monospace; font-size: 12px;
+                        padding: 1px 6px; border-radius: 2px; line-height: 18px;
+                    """)
+                elif text.startswith("- ") or text.startswith("-"):
+                    label.setStyleSheet(f"""
+                        background-color: #3B1F1F; color: {theme['red']};
+                        font-family: monospace; font-size: 12px;
+                        padding: 1px 6px; border-radius: 2px; line-height: 18px;
+                    """)
+                elif text.startswith("@@"):
+                    label.setStyleSheet(f"""
+                        color: {theme['text_tertiary']}; font-size: 12px;
+                        font-family: monospace; padding: 2px 0;
+                    """)
+                elif text.startswith("..."):
+                    label.setStyleSheet(f"""
+                        color: {theme['text_tertiary']}; font-size: 12px;
+                        font-style: italic; padding: 4px 0;
+                    """)
+                else:
+                    label.setStyleSheet(f"""
+                        background-color: {theme['bg_secondary']}; color: {theme['text_tertiary']};
+                        font-family: monospace; font-size: 12px;
+                        padding: 1px 6px; border-radius: 2px; line-height: 18px;
+                    """)
+
+
+class DiffCard(QFrame):
+    """代码对比卡片容器，包含多个 DiffFileCard。"""
+
+    def __init__(self, files_diff, parent=None):
+        """
+        Args:
+            files_diff: DiffParser.parse() 返回的文件列表
+        """
+        super().__init__(parent)
+        self.setObjectName("diffCard")
+
+        total_add = sum(f["additions"] for f in files_diff)
+        total_del = sum(f["deletions"] for f in files_diff)
+
+        self.setStyleSheet(f"""
+            #diffCard {{
+                background-color: transparent;
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setSpacing(6)
+
+        # 顶部标题
+        header = QLabel(f"代码变更（{len(files_diff)} 个文件，+{total_add} -{total_del}）")
+        header.setStyleSheet(
+            f"color: {THEME['text_primary']}; font-size: 14px; "
+            f"font-weight: bold; padding: 4px 4px 8px 4px;"
+        )
+        layout.addWidget(header)
+
+        # 每个文件一个卡片
+        for file_info in files_diff:
+            if file_info["hunks"]:  # 只显示有变更的文件
+                card = DiffFileCard(file_info)
+                layout.addWidget(card)
+
+        layout.addStretch()
+
+    def update_theme(self):
+        """更新 diff 卡片容器主题。"""
+        theme = theme_manager.get_current_theme()
+        self.setStyleSheet(f"""
+            #diffCard {{
+                background-color: transparent;
+            }}
+        """)
+        # 更新子卡片
+        for child in self.findChildren(DiffFileCard):
+            if hasattr(child, 'update_theme'):
+                child.update_theme()
+
 
 class LandingPage(QFrame):
     """空状态引导页，无对话时显示 — 深色主题 + 浮动动画。"""
@@ -763,6 +1842,7 @@ class LandingPage(QFrame):
         super().__init__(parent)
         self.setObjectName("landingPage")
         self.setVisible(False)
+        self.setAutoFillBackground(True)
         self.setStyleSheet(f"""
             #landingPage {{
                 background-color: {THEME['bg_primary']};
@@ -778,18 +1858,18 @@ class LandingPage(QFrame):
         layout.setSpacing(16)
 
         # 顶部渐变文字
-        hint_top = QLabel("你好，我是 Claude")
-        hint_top.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_top.setStyleSheet(f"""
+        self._hint_top = QLabel("你好，我是 Claude")
+        self._hint_top.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._hint_top.setStyleSheet(f"""
             font-size: 30px; color: {THEME['text_primary']};
             font-weight: bold; margin-bottom: 6px;
         """)
-        layout.addWidget(hint_top)
+        layout.addWidget(self._hint_top)
 
-        hint_sub = QLabel("我可以帮你写代码、回答问题、分析文件")
-        hint_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_sub.setStyleSheet(f"font-size: 15px; color: {THEME['text_tertiary']};")
-        layout.addWidget(hint_sub)
+        self._hint_sub = QLabel("我可以帮你写代码、回答问题、分析文件")
+        self._hint_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._hint_sub.setStyleSheet(f"font-size: 15px; color: {THEME['text_tertiary']};")
+        layout.addWidget(self._hint_sub)
 
         layout.addSpacing(30)
         layout.addStretch()
@@ -815,29 +1895,28 @@ class LandingPage(QFrame):
         center_layout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # 文字提示
-        hint_label = QLabel("请开始我们的对话吧")
-        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_label.setStyleSheet(f"font-size: 16px; color: {THEME['text_tertiary']};")
-        center_layout.addWidget(hint_label)
+        self._hint_label = QLabel("请开始我们的对话吧")
+        self._hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._hint_label.setStyleSheet(f"font-size: 16px; color: {THEME['text_tertiary']};")
+        center_layout.addWidget(self._hint_label)
 
         # 输入区
         input_layout = QHBoxLayout()
         input_layout.setSpacing(10)
 
-        self._input = QTextEdit()
-        self._input.setPlaceholderText("输入消息...")
-        self._input.setMinimumHeight(48)
-        self._input.setMaximumHeight(100)
-        self._input.setStyleSheet(f"""
+        self._landing_input = QTextEdit()
+        self._landing_input.setPlaceholderText("输入消息...")
+        self._landing_input.setMinimumHeight(48)
+        self._landing_input.setMaximumHeight(100)
+        self._landing_input.setStyleSheet(f"""
             QTextEdit {{
-                border: 1px solid {THEME['border']}; border-radius: 12px;
+                border-radius: 12px;
                 padding: 10px 14px; font-size: 14px;
-                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};
             }}
-            QTextEdit:focus {{ border-color: {THEME['border_focus']}; }}
             QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}
         """)
-        input_layout.addWidget(self._input)
+        input_layout.addWidget(self._landing_input)
 
         self._send_btn = QPushButton("发  送")
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -864,69 +1943,88 @@ class LandingPage(QFrame):
 
         # 信号
         self._send_btn.clicked.connect(self._on_send)
-        self._input.keyPressEvent = self._on_key_press
+        self._landing_input.keyPressEvent = self._on_key_press
 
     def _on_send(self):
-        text = self._input.toPlainText().strip()
+        text = self._landing_input.toPlainText().strip()
         if text:
-            self._input.clear()
+            self._landing_input.clear()
             self.send_clicked.emit(text)
 
     def _on_key_press(self, event):
         if event.key() == Qt.Key.Key_Return and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
             self._on_send()
             return
-        QTextEdit.keyPressEvent(self._input, event)
+        QTextEdit.keyPressEvent(self._landing_input, event)
 
     def get_input_text(self):
-        return self._input.toPlainText().strip()
+        return self._landing_input.toPlainText().strip()
 
     def clear_input(self):
-        self._input.clear()
+        self._landing_input.clear()
+
+    def update_theme(self):
+        """更新着陆页主题。"""
+        theme = theme_manager.get_current_theme()
+        gradient_start = theme.get('gradient_start', theme['primary'])
+        gradient_end = theme.get('gradient_end', '#8B5CF6')
+
+        self.setStyleSheet(f"""
+            #landingPage {{
+                background-color: {theme['bg_primary']};
+            }}
+        """)
+        if hasattr(self, '_hint_top') and self._hint_top is not None:
+            self._hint_top.setStyleSheet(f"font-size: 30px; color: {theme['text_primary']}; font-weight: bold; margin-bottom: 6px;")
+        if hasattr(self, '_hint_sub') and self._hint_sub is not None:
+            self._hint_sub.setStyleSheet(f"font-size: 15px; color: {theme['text_tertiary']};")
+        if hasattr(self, '_icon_label') and self._icon_label is not None:
+            self._icon_label.setStyleSheet(f"""
+                QLabel {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 {gradient_start}, stop:1 {gradient_end});
+                    border-radius: 48px; font-size: 44px; color: white;
+                }}
+            """)
+        if hasattr(self, '_hint_label') and self._hint_label is not None:
+            self._hint_label.setStyleSheet(f"font-size: 16px; color: {theme['text_tertiary']};")
+        if hasattr(self, '_landing_input') and self._landing_input is not None:
+            self._landing_input.setStyleSheet(f"""
+                QTextEdit {{
+                    border: 1px solid {theme['border']}; border-radius: 12px;
+                    padding: 10px 14px; font-size: 14px;
+                    background-color: {theme['bg_input']}; color: {theme['text_primary']};
+                }}
+                QTextEdit:focus {{ border-color: {theme['border_focus']}; }}
+                QTextEdit::placeholder {{ color: {theme['text_tertiary']}; }}
+            """)
+        if hasattr(self, '_send_btn') and self._send_btn is not None:
+            self._send_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {gradient_start}, stop:1 {gradient_end});
+                    color: white; border: none; border-radius: 12px;
+                    padding: 10px 24px; font-size: 14px; font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {theme['primary_hover']}, stop:1 #A78BFA);
+                }}
+                QPushButton:pressed {{ opacity: 0.85; }}
+            """)
 
     def fade_in(self, duration=500):
         """淡入动画。"""
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-
         self.setVisible(True)
-        effect = QGraphicsOpacityEffect(self)
-        effect.setOpacity(0.0)
-        self.setGraphicsEffect(effect)
-        self._opacity_effect = effect
-
-        self._fade_animation = QPropertyAnimation(effect, b"opacity")
-        self._fade_animation.setDuration(duration)
-        self._fade_animation.setStartValue(0.0)
-        self._fade_animation.setEndValue(1.0)
-        self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._fade_animation.start()
-        self._anim_ref = self._fade_animation
+        animation_manager._step_opacity(self, duration, 0.0, 1.0, None)
 
     def fade_out(self, duration=300, callback=None):
         """淡出动画。"""
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-
-        # 如果还没有 effect，创建一个
-        if self._opacity_effect is None:
-            effect = QGraphicsOpacityEffect(self)
-            effect.setOpacity(1.0)
-            self.setGraphicsEffect(effect)
-            self._opacity_effect = effect
-
-        self._fade_animation = QPropertyAnimation(self._opacity_effect, b"opacity")
-        self._fade_animation.setDuration(duration)
-        self._fade_animation.setStartValue(1.0)
-        self._fade_animation.setEndValue(0.0)
-        self._fade_animation.setEasingCurve(QEasingCurve.Type.InCubic)
-
         def on_done():
             self.setVisible(False)
             if callback:
                 callback()
-
-        self._fade_animation.finished.connect(on_done)
-        self._fade_animation.start()
-        self._anim_ref = self._fade_animation
+        animation_manager._step_opacity(self, duration, 1.0, 0.0, on_done)
 
 
 class PopupList(QDialog):
@@ -989,10 +2087,10 @@ class LeftPanel(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(240)
+        self.setAutoFillBackground(True)
         self.setStyleSheet(f"""
             LeftPanel {{
                 background-color: {THEME['bg_secondary']};
-                border-right: 1px solid {THEME['border']};
             }}
         """)
         self._build()
@@ -1001,6 +2099,27 @@ class LeftPanel(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 12, 10, 10)
         layout.setSpacing(6)
+
+        # 主题切换区域
+        theme_widget = QWidget()
+        theme_layout = QHBoxLayout(theme_widget)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(8)
+        
+        theme_label = QLabel("主题")
+        theme_label.setStyleSheet(f"font-size: 13px; color: {theme_manager.get_color('text_secondary')};")
+        
+        self.theme_switch = ModernSwitch()
+        self.theme_switch.setChecked(False)  # 默认浅色主题
+        
+        # 主题切换事件
+        self.theme_switch.toggled.connect(self._on_theme_toggled)
+        
+        theme_layout.addWidget(theme_label)
+        theme_layout.addWidget(self.theme_switch)
+        theme_layout.addStretch()
+        
+        layout.addWidget(theme_widget)
 
         self.new_btn = QPushButton("✚ 新建对话")
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1047,6 +2166,94 @@ class LeftPanel(QFrame):
         self.conv_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.conv_list.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self.conv_list)
+    
+    def _on_theme_toggled(self, is_dark):
+        """主题切换处理"""
+        try:
+            if is_dark:
+                theme_manager.switch_theme("dark")
+            else:
+                theme_manager.switch_theme("light")
+        except Exception as e:
+            print(f"主题切换错误: {e}")
+            # 重置开关状态
+            self.theme_switch.blockSignals(True)
+            self.theme_switch.setChecked(not is_dark)
+            self.theme_switch.blockSignals(False)
+    
+    def update_theme(self):
+        """更新主题样式 — 只刷新顶层组件，子控件靠 Qt 样式表级联继承。"""
+        try:
+            theme = theme_manager.get_current_theme()
+        except Exception:
+            return
+
+        gradient_start = theme.get('gradient_start', theme['primary'])
+        gradient_end = theme.get('gradient_end', '#8B5CF6')
+
+        self.setStyleSheet(f"""
+            LeftPanel {{
+                background-color: {theme['bg_secondary']};
+                border-radius: 0px;
+            }}
+        """)
+
+        # 新建按钮
+        if hasattr(self, 'new_btn') and self.new_btn is not None:
+            self.new_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 {gradient_start}, stop:1 {gradient_end});
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    padding: 12px 16px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 {theme['primary_hover']}, stop:1 #A78BFA);
+                }}
+                QPushButton:pressed {{
+                    opacity: 0.9;
+                }}
+            """)
+
+        # 对话列表
+        if hasattr(self, 'conv_list') and self.conv_list is not None:
+            self.conv_list.setStyleSheet(f"""
+                QListWidget {{
+                    background-color: {theme['bg_secondary']};
+                    color: {theme['text_primary']};
+                    padding: 8px;
+                    outline: none;
+                }}
+                QListWidget::item {{
+                    padding: 14px 16px;
+                    border: none;
+                    color: {theme['text_secondary']};
+                    border-radius: 12px;
+                    margin: 4px 2px;
+                    background-color: transparent;
+                    font-size: 13px;
+                }}
+                QListWidget::item:hover {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                }}
+                QListWidget::item:selected {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {theme['primary']}, stop:1 {gradient_end});
+                    color: white;
+                    border-radius: 12px;
+                    font-weight: 500;
+                }}
+                QListWidget::item:focus {{
+                    outline: none;
+                    border: none;
+                }}
+            """)
 
     def _on_context_menu(self, pos):
         """右键菜单：重命名 / 删除。"""
@@ -1087,6 +2294,10 @@ class CenterPanel(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAutoFillBackground(True)
+        self._diff_cards = []  # 跟踪所有 DiffCard，用于主题切换
+        self._message_rows = []  # 跟踪所有 MessageRow
+        self._thinking_rows = []  # 跟踪所有 ThinkingRow
         self._build()
 
     def _build(self):
@@ -1160,10 +2371,10 @@ class CenterPanel(QFrame):
         self.msg_scroll = QScrollArea()
         self.msg_scroll.setWidgetResizable(True)
         self.msg_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.msg_scroll.viewport().setAutoFillBackground(True)
         self.msg_scroll.setStyleSheet(f"""
             QScrollArea {{
-                border: 1px solid {THEME['border']}; border-radius: 10px;
-                background: {THEME['bg_primary']};
+                background-color: {THEME['bg_primary']};
             }}
         """)
 
@@ -1190,11 +2401,11 @@ class CenterPanel(QFrame):
             key = text.strip().split()[0].replace("@", "ref").replace("#", "agent").replace("!", "prompt").replace("$", "skill").replace("图片", "image")
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {color}; color: white; border: none;
-                    border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold;
+                    background-color: {color}22; color: {color}; border: 1px solid {color}44;
+                    border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 500;
                 }}
-                QPushButton:hover {{ opacity: 0.85; }}
-                QPushButton:pressed {{ opacity: 0.7; }}
+                QPushButton:hover {{ background-color: {color}33; border-color: {color}66; }}
+                QPushButton:pressed {{ background-color: {color}44; }}
             """)
             setattr(self, f"btn_{key}", btn)
             toolbar.addWidget(btn)
@@ -1251,11 +2462,10 @@ class CenterPanel(QFrame):
         self.input_box.setInputMethodHints(Qt.InputMethodHint.ImhNone)
         self.input_box.setStyleSheet(f"""
             QTextEdit {{
-                border: 1px solid {THEME['border']}; border-radius: 10px;
+                border-radius: 10px;
                 padding: 8px 12px; font-size: 14px;
-                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};
             }}
-            QTextEdit:focus {{ border-color: {THEME['border_focus']}; }}
             QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}
         """)
         self.input_box.setMinimumHeight(40)
@@ -1282,7 +2492,7 @@ class CenterPanel(QFrame):
         input_layout.addWidget(self.send_btn)
         layout.addLayout(input_layout)
 
-        self._input_widgets = [input_layout.itemAt(i).widget() for i in range(input_layout.count()) if input_layout.itemAt(i).widget()]
+        self._landing_input_widgets = [input_layout.itemAt(i).widget() for i in range(input_layout.count()) if input_layout.itemAt(i).widget()]
 
         # 着陆页（无对话时显示，初始隐藏）
         self.landing_page = LandingPage()
@@ -1298,9 +2508,18 @@ class CenterPanel(QFrame):
         self.permission_no_btn.clicked.connect(lambda: self.permission_reject_clicked.emit())
 
     def show_permission_request(self, text):
+        print(f"[PermissionUI] show_permission_request called with: {text}")
         self.permission_label.setText(text)
+        self.permission_bar.setMinimumHeight(50)
         self.permission_bar.setVisible(True)
+        self.permission_bar.show()
+        self.permission_bar.raise_()
+        self.permission_bar.update()
+        print(f"[PermissionUI] permission_bar visibility: {self.permission_bar.isVisible()}")
+        print(f"[PermissionUI] permission_bar parent: {self.permission_bar.parent()}")
+        print(f"[PermissionUI] permission_bar geometry: {self.permission_bar.geometry()}")
 
+    @pyqtSlot()
     def hide_permission_request(self):
         self.permission_bar.setVisible(False)
 
@@ -1355,6 +2574,10 @@ class CenterPanel(QFrame):
 
     def clear_messages(self):
         """清空消息区。"""
+        # 清空跟踪列表，防止主题切换时访问已删除的组件
+        self._diff_cards.clear()
+        self._message_rows.clear()
+        self._thinking_rows.clear()
         while self.msg_layout.count() > 1:
             item = self.msg_layout.takeAt(0)
             if item.widget():
@@ -1367,64 +2590,36 @@ class CenterPanel(QFrame):
         self._separator_line.setVisible(False)
         for w in self._toolbar_widgets:
             w.setVisible(False)
-        for w in self._input_widgets:
+        for w in self._landing_input_widgets:
             w.setVisible(False)
 
     def hide_landing(self):
         """隐藏着陆页，带淡出动画。"""
         def on_finished():
             self.landing_page.setVisible(False)
-            self.landing_page._opacity_effect.setOpacity(1.0)
+            self.landing_page.setWindowOpacity(1.0)
         self.landing_page.fade_out(duration=300, callback=on_finished)
         self.msg_scroll.setVisible(True)
         self._separator_line.setVisible(True)
         for w in self._toolbar_widgets:
             w.setVisible(True)
-        for w in self._input_widgets:
+        for w in self._landing_input_widgets:
             w.setVisible(True)
 
     def _animate_widget_in(self, widget, duration=400):
-        """给新添加的 widget 加淡入动画。
-
-        避免在布局更新期间设置 QGraphicsEffect，使用 QTimer 延迟启动。
-        """
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-
-        # 先完全隐藏
+        """给新添加的 widget 加淡入动画。"""
         widget.setVisible(False)
 
         def _start_fade():
-            """延迟一帧后启动淡入动画。"""
             widget.setVisible(True)
-            effect = QGraphicsOpacityEffect(widget)
-            effect.setOpacity(0.0)
-            widget.setGraphicsEffect(effect)
+            animation_manager._step_opacity(widget, duration, 0.0, 1.0, None)
 
-            anim = QPropertyAnimation(effect, b"opacity")
-            anim.setDuration(duration)
-            anim.setStartValue(0.0)
-            anim.setEndValue(1.0)
-            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-            # 保存引用，避免 GC
-            widget._fade_anim = anim
-            widget._fade_effect = effect
-
-            def on_finished():
-                # 动画结束后移除 effect，避免长期占用 paint 管线
-                if widget is not None and widget.graphicsEffect() is effect:
-                    widget.setGraphicsEffect(None)
-                    widget._fade_effect = None
-
-            anim.finished.connect(on_finished)
-            anim.start()
-
-        # 延迟 50ms 启动动画，避免与 paint 事件冲突
         QTimer.singleShot(50, _start_fade)
 
     def add_message(self, role, text):
         """添加消息到聊天区，带淡入动画。"""
         row = MessageRow(role, text)
+        self._message_rows.append(row)
         spring_index = self.msg_layout.count() - 1
         self.msg_layout.insertWidget(spring_index, row)
         self._animate_widget_in(row)
@@ -1447,6 +2642,7 @@ class CenterPanel(QFrame):
         row = self._find_latest_thinking_row()
         if row is None:
             row = ThinkingRow(text, duration_ms)
+            self._thinking_rows.append(row)
             spring_index = self.msg_layout.count() - 1
             self.msg_layout.insertWidget(spring_index, row)
             self._animate_widget_in(row)
@@ -1514,63 +2710,719 @@ class CenterPanel(QFrame):
                 return item.widget().get_text()
         return ""
 
+    def add_diff_card(self, files_diff):
+        """添加代码对比卡片到消息区。
+
+        Args:
+            files_diff: DiffParser.parse() 返回的文件列表
+        """
+        card = DiffCard(files_diff)
+        self._diff_cards.append(card)
+        spring_index = self.msg_layout.count() - 1
+        self.msg_layout.insertWidget(spring_index, card)
+        self._scroll_to_bottom()
+
+    def update_theme(self):
+        """更新中心面板主题样式 — 只刷新顶层组件，子控件靠 Qt 样式表级联。"""
+        try:
+            theme = theme_manager.get_current_theme()
+        except Exception:
+            return
+
+        gradient_start = theme.get('gradient_start', theme['primary'])
+        gradient_end = theme.get('gradient_end', '#8B5CF6')
+
+        # 面板背景
+        self.setStyleSheet(f"""
+            CenterPanel {{
+                background-color: {theme['bg_primary']};
+            }}
+        """)
+
+        # 下拉框样式
+        combo_style = f"""
+            QComboBox {{
+                background-color: {theme['bg_input']};
+                color: {theme['text_primary']};
+                border: 1px solid {theme['border']};
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-size: 12px;
+                min-width: 120px;
+                font-weight: 500;
+            }}
+            QComboBox:hover {{
+                border-color: {theme['border_focus']};
+                background-color: {theme['bg_card']};
+            }}
+            QComboBox:focus {{
+                border: 2px solid {theme['border_focus']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid {theme['text_secondary']};
+                margin-right: 4px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {theme['bg_card']};
+                color: {theme['text_primary']};
+                selection-background-color: {theme['primary']};
+                border: 1px solid {theme['border']};
+                border-radius: 8px;
+                padding: 4px;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 8px 12px;
+                border-radius: 4px;
+                margin: 2px;
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {theme['primary']};
+                color: white;
+            }}
+        """
+
+        if hasattr(self, 'model_combo') and self.model_combo is not None:
+            self.model_combo.setStyleSheet(combo_style)
+        if hasattr(self, 'mode_combo') and self.mode_combo is not None:
+            self.mode_combo.setStyleSheet(combo_style)
+        if hasattr(self, 'permission_combo') and self.permission_combo is not None:
+            self.permission_combo.setStyleSheet(combo_style)
+
+        # 快捷按钮
+        is_dark = theme['bg_primary'] in ('#0D1117', '#212121', '#1A1A1A', '#1E1E1E')
+        button_colors = [
+            ("@ 引用文件", theme["primary"]),
+            ("# 智能体", theme["green"]),
+            ("! 提示词", theme["orange"]),
+            ("$ Skills", theme["purple"]),
+            (" 图片", theme["teal"])
+        ]
+        for i, (text, color) in enumerate(button_colors):
+            btn = getattr(self, f"btn_{['ref', 'agent', 'prompt', 'skill', 'image'][i]}", None)
+            if btn is not None:
+                if is_dark:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {color}22;
+                            color: {color};
+                            border: 1px solid {color}44;
+                            border-radius: 8px;
+                            padding: 6px 12px;
+                            font-size: 11px;
+                            font-weight: 500;
+                        }}
+                        QPushButton:hover {{ background-color: {color}33; border-color: {color}66; }}
+                        QPushButton:pressed {{ background-color: {color}44; }}
+                    """)
+                else:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {color};
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            padding: 6px 12px;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }}
+                        QPushButton:hover {{ opacity: 0.85; }}
+                        QPushButton:pressed {{ opacity: 0.7; }}
+                    """)
+
+        # 消息区
+        if hasattr(self, 'msg_scroll') and self.msg_scroll is not None:
+            self.msg_scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    background-color: {theme['bg_primary']};
+                }}
+            """)
+            try:
+                vp = self.msg_scroll.viewport()
+                if vp is not None:
+                    vp.setAutoFillBackground(True)
+                    vp.setStyleSheet(f"background-color: {theme['bg_primary']};")
+            except Exception:
+                pass
+        if hasattr(self, 'msg_container') and self.msg_container is not None:
+            self.msg_container.setStyleSheet(f"background-color: {theme['bg_primary']};")
+
+        # 权限请求栏
+        if hasattr(self, 'permission_bar') and self.permission_bar is not None:
+            self.permission_bar.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_card']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 12px;
+                    padding: 8px;
+                }}
+                QLabel {{
+                    color: {theme['text_secondary']};
+                    font-size: 12px;
+                    font-weight: 500;
+                }}
+            """)
+            if hasattr(self, 'permission_yes_btn') and self.permission_yes_btn is not None:
+                self.permission_yes_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {theme['green']};
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 6px 16px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }}
+                    QPushButton:hover {{ background-color: {theme['green_hover']}; }}
+                """)
+            if hasattr(self, 'permission_no_btn') and self.permission_no_btn is not None:
+                self.permission_no_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {theme['red']};
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 6px 16px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }}
+                    QPushButton:hover {{ background-color: {theme['red_hover']}; }}
+                """)
+
+        # 输入框
+        if hasattr(self, 'input_box') and self.input_box is not None:
+            self.input_box.setStyleSheet(f"""
+                QTextEdit {{
+                    border-radius: 12px;
+                    padding: 12px 16px;
+                    font-size: 14px;
+                    background-color: {theme['bg_primary']};
+                    color: {theme['text_primary']};
+                    selection-background-color: {theme['primary']};
+                }}
+                QTextEdit::placeholder {{
+                    color: {theme['text_tertiary']};
+                    font-style: italic;
+                }}
+            """)
+
+        # 发送按钮
+        if hasattr(self, 'send_btn') and self.send_btn is not None:
+            self.send_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 {gradient_start}, stop:1 {gradient_end});
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    padding: 10px 24px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                }}
+                QPushButton:hover {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 {theme['primary_hover']}, stop:1 #A78BFA);
+                }}
+                QPushButton:disabled {{ background-color: {theme['text_tertiary']}; }}
+                QPushButton:pressed {{ opacity: 0.9; }}
+            """)
+
+        # diff 卡片
+        for card in list(self._diff_cards):
+            try:
+                if hasattr(card, 'update_theme'):
+                    card.update_theme()
+            except Exception:
+                pass
+
+        # 消息行
+        for row in list(self._message_rows):
+            try:
+                if hasattr(row, 'update_theme'):
+                    row.update_theme()
+            except Exception:
+                pass
+
+        # 思考行
+        for row in list(self._thinking_rows):
+            try:
+                if hasattr(row, 'update_theme'):
+                    row.update_theme()
+            except Exception:
+                pass
+
+        # 着陆页
+        if hasattr(self, 'landing_page'):
+            try:
+                self.landing_page.update_theme()
+            except Exception:
+                pass
+
+
+# ==================== TaskProgress（任务进度面板）====================
+
+class TaskStepCard(QFrame):
+    """单个任务步骤卡片（可折叠）。"""
+
+    def __init__(self, index, tool_name, params=None, parent=None):
+        super().__init__(parent)
+        self._expanded = False
+        self._tool_name = tool_name
+        self._index = index
+        self.setObjectName("taskStepCard")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 标题栏
+        self._title_bar = QFrame()
+        self._title_bar.setFixedHeight(32)
+        self._title_bar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_card']};
+                border-radius: 6px;
+            }}
+        """)
+        title_layout = QHBoxLayout(self._title_bar)
+        title_layout.setContentsMargins(10, 2, 10, 2)
+        title_layout.setSpacing(6)
+
+        # 折叠箭头
+        self._arrow = QLabel("▶")
+        self._arrow.setStyleSheet(f"color: {THEME['text_tertiary']}; font-size: 10px;")
+        title_layout.addWidget(self._arrow)
+
+        # 工具名称
+        self._name_label = QLabel(tool_name)
+        self._name_label.setStyleSheet(
+            f"color: {THEME['text_primary']}; font-size: 12px; font-weight: bold;"
+        )
+        title_layout.addWidget(self._name_label)
+
+        # 状态标签（运行中）
+        self._status_label = QLabel("进行中")
+        self._status_label.setStyleSheet(
+            f"background-color: {THEME['primary']}; color: white; "
+            f"font-size: 10px; border-radius: 8px; padding: 1px 6px;"
+        )
+        title_layout.addWidget(self._status_label)
+
+        title_layout.addStretch()
+
+        # 用时
+        self._time_label = QLabel("0ms")
+        self._time_label.setStyleSheet(f"color: {THEME['text_tertiary']}; font-size: 11px;")
+        title_layout.addWidget(self._time_label)
+
+        title_layout.addWidget(self._arrow)
+
+        self._title_bar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._title_bar.mousePressEvent = lambda e: self._toggle()
+        layout.addWidget(self._title_bar)
+
+        # 内容区（默认隐藏）
+        self._content = QFrame()
+        self._content.setVisible(False)
+        self._content.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_primary']};
+                border-radius: 0 0 6px 6px;
+            }}
+        """)
+        content_layout = QVBoxLayout(self._content)
+        content_layout.setContentsMargins(10, 8, 10, 8)
+        content_layout.setSpacing(4)
+
+        # 参数展示
+        if params:
+            param_text = json.dumps(params, ensure_ascii=False, indent=2)
+            param_label = QLabel(param_text[:300])
+            param_label.setWordWrap(True)
+            param_label.setStyleSheet(
+                f"color: {THEME['text_secondary']}; font-size: 11px; "
+                f"font-family: monospace;"
+            )
+            content_layout.addWidget(param_label)
+
+        # 结果区（动态更新）
+        self._result_label = QLabel()
+        self._result_label.setWordWrap(True)
+        self._result_label.setStyleSheet(
+            f"color: {THEME['text_tertiary']}; font-size: 11px; "
+            f"font-family: monospace;"
+        )
+        content_layout.addWidget(self._result_label)
+
+        layout.addWidget(self._content)
+
+    def set_done(self, result="", duration_ms=0):
+        """标记为已完成。"""
+        self._status_label.setText("已完成")
+        self._status_label.setStyleSheet(
+            f"background-color: {THEME['green']}; color: white; "
+            f"font-size: 10px; border-radius: 8px; padding: 1px 6px;"
+        )
+        if duration_ms > 0:
+            self._time_label.setText(f"{duration_ms}ms")
+        if result:
+            preview = result[:500].replace("\n", " ")
+            self._result_label.setText(f"结果: {preview}")
+
+    def set_running(self, duration_ms=0):
+        """标记为进行中。"""
+        self._status_label.setText("进行中")
+        self._status_label.setStyleSheet(
+            f"background-color: {THEME['primary']}; color: white; "
+            f"font-size: 10px; border-radius: 8px; padding: 1px 6px;"
+        )
+        if duration_ms > 0:
+            self._time_label.setText(f"{duration_ms}ms")
+
+    def set_result(self, result):
+        """更新结果文本。"""
+        if result:
+            preview = result[:500].replace("\n", " ")
+            self._result_label.setText(f"结果: {preview}")
+
+    def _toggle(self):
+        self._expanded = not self._expanded
+        self._content.setVisible(self._expanded)
+        self._arrow.setText("▼" if self._expanded else "▶")
+
+    def update_theme(self):
+        """更新任务卡片主题样式"""
+        theme = theme_manager.get_current_theme()
+        
+        # 更新卡片背景
+        self.setStyleSheet(f"""
+            TaskStepCard {{
+                background-color: {theme['bg_card']};
+                border: 1px solid {theme['border']};
+                border-radius: 8px;
+                padding: 8px;
+                margin: 2px 0;
+            }}
+        """)
+        
+        # 更新标题栏
+        if hasattr(self, '_title_bar') and self._title_bar is not None:
+            self._title_bar.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_card']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 6px;
+                }}
+            """)
+
+        # 更新工具名称
+        if hasattr(self, '_name_label') and self._name_label is not None:
+            self._name_label.setStyleSheet(
+                f"color: {theme['text_primary']}; font-size: 12px; font-weight: bold;"
+            )
+
+        # 更新标题
+        if hasattr(self, '_title_label') and self._title_label is not None:
+            self._title_label.setStyleSheet(f"""
+                font-weight: 600;
+                font-size: 13px;
+                color: {theme['text_primary']};
+            """)
+
+        # 更新箭头
+        if hasattr(self, '_arrow') and self._arrow is not None:
+            self._arrow.setStyleSheet(f"""
+                color: {theme['text_secondary']};
+                font-size: 12px;
+            """)
+
+        # 更新状态标签（保持当前状态的颜色）
+        if hasattr(self, '_status_label') and self._status_label is not None:
+            status_text = self._status_label.text()
+            if status_text == "已完成":
+                color = theme['green']
+            else:
+                color = theme['primary']
+            self._status_label.setStyleSheet(
+                f"background-color: {color}; "
+                f"color: white; "
+                f"font-size: 10px; "
+                f"border-radius: 6px; "
+                f"padding: 2px 6px;"
+                f"font-weight: 600;"
+            )
+        
+        # 更新时间标签
+        if hasattr(self, '_time_label') and self._time_label is not None:
+            self._time_label.setStyleSheet(f"""
+                color: {theme['text_tertiary']};
+                font-size: 10px;
+            """)
+
+        # 更新结果标签
+        if hasattr(self, '_result_label') and self._result_label is not None:
+            self._result_label.setStyleSheet(f"""
+                color: {theme['text_secondary']};
+                font-size: 11px;
+                padding: 4px;
+                background-color: {theme['bg_input']};
+                border-radius: 4px;
+            """)
+
+        # 更新内容区域
+        if hasattr(self, '_content') and self._content is not None:
+            self._content.setStyleSheet(f"""
+                background-color: {theme['bg_input']};
+                border-radius: 4px;
+                padding: 8px;
+                margin-top: 4px;
+            """)
+
 
 class RightPanel(QFrame):
-    """右侧面板：项目文件树 + 文件变更。"""
+    """右侧面板：任务进度 + 项目文件。"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(220)
+        self.setFixedWidth(260)
+        self.setAutoFillBackground(True)
         self.setStyleSheet(f"""
             RightPanel {{
                 background-color: {THEME['bg_secondary']};
-                border-left: 1px solid {THEME['border']};
             }}
         """)
+        self._tool_cards = {}  # {index: TaskStepCard}
         self._build()
 
     def _build(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 12, 10, 10)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
 
-        title = QLabel("项目文件")
-        title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
-        layout.addWidget(title)
+        # === 任务进度区 ===
+        task_title = QLabel("任务进度")
+        task_title.setStyleSheet(
+            f"font-weight: bold; font-size: 14px; padding: 2px 0; color: {THEME['text_primary']};"
+        )
+        layout.addWidget(task_title)
 
-        self.file_list = QListWidget()
-        self.file_list.setStyleSheet(f"""
-            QListWidget {{
-                border: 1px solid {THEME['border']}; border-radius: 8px;
-                background-color: {THEME['bg_secondary']}; color: {THEME['text_secondary']};
+        self.task_scroll = QScrollArea()
+        self.task_scroll.setWidgetResizable(True)
+        self.task_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        # viewport() 必须显式设置背景色，否则默认白色
+        self.task_scroll.viewport().setAutoFillBackground(True)
+        self.task_scroll.viewport().setStyleSheet(f"background-color: {THEME['bg_secondary']};")
+        self.task_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: {THEME['bg_secondary']};
             }}
-            QListWidget::item {{ padding: 4px 8px; color: {THEME['text_secondary']}; }}
-            QListWidget::item:selected {{ background-color: {THEME['primary']}; color: white; }}
         """)
-        self.file_list.setPalette(QApplication.instance().palette())
-        layout.addWidget(self.file_list)
+        self.task_container = QWidget()
+        self.task_container.setStyleSheet(f"background-color: {THEME['bg_secondary']};")
+        self.task_layout = QVBoxLayout(self.task_container)
+        self.task_layout.setContentsMargins(4, 4, 4, 4)
+        self.task_layout.setSpacing(4)
 
+        # 无任务时提示（添加到 task_layout 中）
+        self._no_task_label = QLabel("等待 AI 执行任务...")
+        self._no_task_label.setStyleSheet(
+            f"color: {THEME['text_tertiary']}; font-size: 12px; "
+            f"font-style: italic; padding: 20px;"
+        )
+        self._no_task_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.task_layout.addWidget(self._no_task_label)
+
+        self.task_layout.addStretch()
+        self.task_scroll.setWidget(self.task_container)
+        layout.addWidget(self.task_scroll)
+
+        # === 分隔线 ===
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet(f"background-color: {THEME['border']};")
         layout.addWidget(line)
 
-        change_title = QLabel("文件变更")
-        change_title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
-        layout.addWidget(change_title)
+        # === 项目文件区 ===
+        file_title = QLabel("项目文件")
+        file_title.setStyleSheet(
+            f"font-weight: bold; font-size: 14px; padding: 2px 0; color: {THEME['text_primary']};"
+        )
+        layout.addWidget(file_title)
 
-        self.change_list = QListWidget()
-        self.change_list.setStyleSheet(f"""
+        self.file_list = QListWidget()
+        self.file_list.setAutoFillBackground(True)
+        self.file_list.setStyleSheet(f"""
             QListWidget {{
-                border: 1px solid {THEME['border']}; border-radius: 8px;
                 background-color: {THEME['bg_secondary']}; color: {THEME['text_secondary']};
+                border: none;
             }}
             QListWidget::item {{ padding: 4px 8px; color: {THEME['text_secondary']}; }}
+            QListWidget::item:selected {{ background-color: {THEME['primary']}; color: white; }}
         """)
-        item = QListWidgetItem("暂无变更")
-        item.setForeground(QColor(THEME['text_tertiary']))
-        self.change_list.addItem(item)
-        layout.addWidget(self.change_list)
+        self.file_list.setMaximumHeight(200)
+        layout.addWidget(self.file_list)
+
+    def update_task(self, tool_info):
+        """更新任务步骤。
+
+        Args:
+            tool_info: dict {index, tool, params/result, status, duration_ms}
+        """
+        index = tool_info.get("index", 0)
+        tool = tool_info.get("tool", "unknown")
+        status = tool_info.get("status", "")
+        result = tool_info.get("result", "")
+        params = tool_info.get("params", {})
+        duration_ms = tool_info.get("duration_ms", 0)
+
+        # 隐藏无任务提示
+        if self._no_task_label:
+            self._no_task_label.setVisible(False)
+
+        if status == "running":
+            # 新建步骤卡片
+            if index not in self._tool_cards:
+                card = TaskStepCard(index, tool, params)
+                # 插入到倒数第二个位置（addStretch 之前）
+                self.task_layout.insertWidget(self.task_layout.count() - 1, card)
+                self._tool_cards[index] = card
+            else:
+                self._tool_cards[index].set_running()
+
+        elif status == "done":
+            # 标记完成
+            if index in self._tool_cards:
+                self._tool_cards[index].set_done(result, duration_ms)
+            else:
+                # 如果之前没收到 running 信号，直接创建已完成卡片
+                card = TaskStepCard(index, tool, params)
+                card.set_done(result, duration_ms)
+                self.task_layout.insertWidget(self.task_layout.count() - 1, card)
+                self._tool_cards[index] = card
+
+        # 自动滚动到底部
+        QTimer.singleShot(50, lambda: self.task_scroll.verticalScrollBar().setValue(
+            self.task_scroll.verticalScrollBar().maximum()
+        ))
+
+    def clear_tasks(self):
+        """清空所有任务步骤。"""
+        for card in self._tool_cards.values():
+            card.deleteLater()
+        self._tool_cards.clear()
+        if self._no_task_label:
+            self._no_task_label.setVisible(True)
+
+    def update_theme(self):
+        """更新右侧面板主题样式 — 只刷新顶层组件。"""
+        try:
+            theme = theme_manager.get_current_theme()
+        except Exception:
+            return
+
+        self.setStyleSheet(f"""
+            RightPanel {{
+                background-color: {theme['bg_secondary']};
+            }}
+        """)
+
+        # 任务滚动区域
+        if hasattr(self, 'task_scroll') and self.task_scroll is not None:
+            self.task_scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    background-color: {theme['bg_secondary']};
+                }}
+                QScrollBar:vertical {{
+                    background: {theme['bg_input']};
+                    width: 8px;
+                    border-radius: 4px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: {theme['border']};
+                    border-radius: 4px;
+                    min-height: 20px;
+                }}
+                QScrollBar::handle:vertical:hover {{
+                    background: {theme['border_focus']};
+                }}
+            """)
+            try:
+                vp = self.task_scroll.viewport()
+                if vp is not None:
+                    vp.setAutoFillBackground(True)
+                    vp.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+            except Exception:
+                pass
+
+        # 任务容器
+        if hasattr(self, 'task_container') and self.task_container is not None:
+            self.task_container.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+
+        # 无任务提示
+        if hasattr(self, '_no_task_label') and self._no_task_label is not None:
+            self._no_task_label.setStyleSheet(f"""
+                color: {theme['text_tertiary']};
+                font-size: 12px;
+                font-style: italic;
+                padding: 20px;
+                text-align: center;
+            """)
+
+        # 文件列表
+        if hasattr(self, 'file_list') and self.file_list is not None:
+            self.file_list.setStyleSheet(f"""
+                QListWidget {{
+                    background-color: {theme['bg_secondary']};
+                    color: {theme['text_secondary']};
+                    padding: 4px;
+                    outline: none;
+                    border: none;
+                }}
+                QListWidget::item {{
+                    padding: 8px 12px;
+                    color: {theme['text_secondary']};
+                    border-radius: 6px;
+                    margin: 2px;
+                    font-size: 12px;
+                }}
+                QListWidget::item:hover {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                }}
+                QListWidget::item:selected {{
+                    background-color: {theme['primary']};
+                    color: white;
+                    border-radius: 6px;
+                    font-weight: 500;
+                }}
+            """)
+            try:
+                vp = self.file_list.viewport()
+                if vp is not None:
+                    vp.setAutoFillBackground(True)
+                    vp.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+            except Exception:
+                pass
+
+        # 任务卡片
+        try:
+            for card in list(self._tool_cards.values()):
+                try:
+                    if hasattr(card, 'update_theme'):
+                        card.update_theme()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 # ==================== 主窗口 ====================
@@ -1585,11 +3437,6 @@ class MainWindow(QMainWindow):
         self.showMaximized()
         self.setMinimumSize(900, 500)
 
-        # 深色主题窗口背景
-        self.setStyleSheet(f"""
-            QMainWindow {{ background-color: {THEME['bg_primary']}; }}
-        """)
-
         self.claude_client = ClaudeClient()
         self.current_conv_id = None
         self._building_response = False
@@ -1598,31 +3445,73 @@ class MainWindow(QMainWindow):
         self._session_last_active = None  # session 最后活跃时间
         self._SESSION_TIMEOUT = 1800  # session 超时阈值（秒），30 分钟
         self._last_thinking_segments = []  # 当前轮次思考分段
+        self._last_diff_data = None  # 当前轮次 diff 数据
         self._has_stream_text = False  # 当前轮次是否已收到正文流
-        self._permission_prompt_shown = False  # 当前轮次是否已弹出权限提示
-        self._hook_token = None
-        self._hook_server = None
-        self._hook_server_thread = None
-        self._pending_permission = None  # {event, done_event, decision}
-        self._stop_pending = False  # 用户主动停止标记
+        self._sdk_permission_waiting = False  # SDK 权限等待标志
         self._pending_new_conv_id = None  # 新建但未发送的对话 ID
 
+        # 项目工作目录（优先使用环境变量，回退到当前目录）
+        self._project_dir = os.environ.get("CCVIEW_PROJECT_DIR") or os.getcwd()
+        print(f"[CC-view] 项目目录: {self._project_dir}")
+
         self._build()
+
+        # 应用主题样式（在 _build 之后，确保面板已创建）
+        self._apply_theme()
+
+        # 连接主题变更信号
+        theme_manager.theme_changed.connect(self._apply_theme)
         QTimer.singleShot(300, self._init_content)
-        self._start_permission_hook_server()
 
-        # 后台 git 工作线程
-        self._worker_thread = QThread()
-        self.git_worker = GitWorker()
-        self.git_worker.moveToThread(self._worker_thread)
-        self.git_worker.files_ready.connect(self._on_files_ready)
-        self.git_worker.status_ready.connect(self._on_status_ready)
-        self._worker_thread.start()
+    def _apply_theme(self):
+        """应用主题样式到主窗口"""
+        try:
+            theme = theme_manager.get_current_theme()
 
-        # 定时刷新
-        self.change_timer = QTimer()
-        self.change_timer.timeout.connect(self._schedule_git_status)
-        self.change_timer.start(8000)
+            # 更新主窗口背景
+            self.setStyleSheet(f"""
+                QMainWindow {{ background-color: {theme['bg_primary']}; }}
+            """)
+        except Exception as e:
+            print(f"主题应用错误: {e}")
+            return
+
+        # 更新左侧面板主题（独立 try-except）
+        try:
+            if hasattr(self, 'left_panel') and self.left_panel is not None:
+                if hasattr(self.left_panel, 'update_theme'):
+                    self.left_panel.update_theme()
+        except Exception as e:
+            print(f"主题应用错误: {e}")
+
+        # 更新中心面板主题（独立 try-except）
+        try:
+            if hasattr(self, 'center_panel') and self.center_panel is not None:
+                if hasattr(self.center_panel, 'update_theme'):
+                    self.center_panel.update_theme()
+        except Exception as e:
+            print(f"主题应用错误: {e}")
+
+        # 更新右侧面板主题（独立 try-except）
+        try:
+            if hasattr(self, 'right_panel') and self.right_panel is not None:
+                if hasattr(self.right_panel, 'update_theme'):
+                    self.right_panel.update_theme()
+        except Exception as e:
+            print(f"主题应用错误: {e}")
+
+        # 后台 git 工作线程 - 临时禁用以调试线程问题
+        # self._worker_thread = QThread()
+        # self.git_worker = GitWorker()
+        # self.git_worker.moveToThread(self._worker_thread)
+        # self.git_worker.files_ready.connect(self._on_files_ready)
+        # self.git_worker.status_ready.connect(self._on_status_ready)
+        # self._worker_thread.start()
+
+        # 定时刷新 - 临时禁用以调试线程问题
+        # self.change_timer = QTimer()
+        # self.change_timer.timeout.connect(self._schedule_git_status)
+        # self.change_timer.start(8000)
 
         # session 超时检查定时器（每 60 秒检查一次）
         self._session_check_timer = QTimer()
@@ -1649,7 +3538,6 @@ class MainWindow(QMainWindow):
         self.center_panel.stop_clicked.connect(self._on_stop)
         self.center_panel.permission_accept_clicked.connect(self._on_permission_accept)
         self.center_panel.permission_reject_clicked.connect(self._on_permission_reject)
-        self.center_panel.input_box.keyPressEvent = self._input_key_press
         self.left_panel.new_btn.clicked.connect(self._new_conversation)
         self.left_panel.conv_list.itemClicked.connect(self._on_select_conversation)
         self.left_panel.rename_requested.connect(self._on_rename_requested)
@@ -1661,11 +3549,14 @@ class MainWindow(QMainWindow):
         self.center_panel.btn_image.clicked.connect(self._upload_image)
         # 着陆页发送信号
         self.center_panel.landing_page.send_clicked.connect(self._on_landing_send)
+        # 输入框回车发送
+        self.center_panel.input_box.keyPressEvent = self._input_key_press
 
     def _init_content(self):
         self._load_saved_conversations()
-        self._schedule_git_files()
-        self._schedule_git_status()
+        # 临时禁用git相关功能
+        # self._schedule_git_files()
+        # self._schedule_git_status()
         # 无对话时显示着陆页
         if not self.current_conv_id:
             self.center_panel.show_landing()
@@ -1689,15 +3580,21 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "请等待当前对话完成")
             return
 
+        # 淡出当前内容
+        if hasattr(self.center_panel, 'msg_scroll') and self.center_panel.msg_scroll.isVisible():
+            animation_manager.fade_out(self.center_panel.msg_scroll, 200, 'ease-out', 
+                                      lambda: self._load_conversation_with_animation(conv_id))
+        else:
+            self._load_conversation_with_animation(conv_id)
+    
+    def _load_conversation_with_animation(self, conv_id):
+        """带动画加载对话内容"""
         conv = load_conversation(conv_id)
         if not conv:
             return
 
         self.current_conv_id = conv_id
         self._is_first_send = False
-        # 切换到其他对话，清除 pending 标记
-        if conv.get("title") != "新增对话":
-            self._pending_new_conv_id = None
         self.center_panel.clear_messages()
         self.center_panel.hide_landing()
 
@@ -1717,6 +3614,11 @@ class MainWindow(QMainWindow):
                     thinking_text = msg["thinking"]
                     thinking_ms = msg.get("thinking_duration_ms", 0)
                     self.center_panel.add_thinking_block(thinking_text, thinking_ms, in_progress=False)
+            # 如果有 diff 数据，恢复 DiffCard
+            if role == "assistant" and "diff_data" in msg:
+                diff_data = msg["diff_data"]
+                if diff_data and isinstance(diff_data, list):
+                    self.center_panel.add_diff_card(diff_data)
 
         # 高亮左侧列表项
         for i in range(self.left_panel.conv_list.count()):
@@ -1724,6 +3626,10 @@ class MainWindow(QMainWindow):
             if item.data(Qt.ItemDataRole.UserRole) == conv_id:
                 self.left_panel.conv_list.setCurrentItem(item)
                 break
+
+        # 淡入新内容
+        if hasattr(self.center_panel, 'msg_scroll'):
+            animation_manager.fade_in(self.center_panel.msg_scroll, 300, 'ease-in')
 
     def _on_select_conversation(self, item):
         conv_id = item.data(Qt.ItemDataRole.UserRole)
@@ -1747,25 +3653,16 @@ class MainWindow(QMainWindow):
             self.right_panel.file_list.addItem("（未找到 git 仓库）")
 
     def _on_status_ready(self, status):
-        self.right_panel.change_list.clear()
-        has_changes = False
+        """文件变更状态更新（仅打印日志）。"""
+        changes = []
         for path in status.get("modified", []):
-            has_changes = True
-            item = QListWidgetItem(f"[已修改] {path}")
-            item.setForeground(QColor("#F97316"))
-            self.right_panel.change_list.addItem(item)
+            changes.append(f"[已修改] {path}")
         for path in status.get("added", []):
-            has_changes = True
-            item = QListWidgetItem(f"[已新增] {path}")
-            item.setForeground(QColor("#22C55E"))
-            self.right_panel.change_list.addItem(item)
+            changes.append(f"[已新增] {path}")
         for path in status.get("deleted", []):
-            has_changes = True
-            item = QListWidgetItem(f"[已删除] {path}")
-            item.setForeground(QColor("#EF4444"))
-            self.right_panel.change_list.addItem(item)
-        if not has_changes:
-            self.right_panel.change_list.addItem("暂无变更")
+            changes.append(f"[已删除] {path}")
+        if changes:
+            print(f"[GitStatus] {len(changes)} 个变更")
 
     def _input_key_press(self, event):
         """Enter 发送，Shift+Enter 换行。"""
@@ -1833,8 +3730,8 @@ class MainWindow(QMainWindow):
         # 添加 AI 占位消息（带表情 + 动画）
         self.center_panel.add_message("assistant", "🤔 思考中...")
         self._last_thinking_segments = []
+        self._last_diff_data = None  # 清空上一轮的 diff 数据
         self._has_stream_text = False
-        self._permission_prompt_shown = False
 
         # 获取当前对话的 session_id（用于续接历史对话）
         session_id = conv.get("session_id") if conv else None
@@ -1851,9 +3748,9 @@ class MainWindow(QMainWindow):
         elif perm_ui.startswith("plan"):
             permission_mode = "plan"
 
-        # 创建 Claude 工作线程
+        # 创建 Claude 工作线程 — 使用 SDK 方案（真正的权限拦截）
         self._claude_thread = QThread()
-        self._claude_worker = ClaudeWorker(prompt, model, session_id=session_id, permission_mode=permission_mode)
+        self._claude_worker = SDKClaudeWorker(prompt, model, session_id=session_id, permission_mode=permission_mode, project_dir=self._project_dir)
         self._claude_worker.moveToThread(self._claude_thread)
         self._claude_worker.chunk_ready.connect(self._on_chunk)
         self._claude_worker.result_ready.connect(self._on_claude_result)
@@ -1863,6 +3760,9 @@ class MainWindow(QMainWindow):
         self._claude_worker.status_update.connect(self._on_worker_status)
         self._claude_worker.error_occurred.connect(self._on_claude_error)
         self._claude_worker.stopped.connect(self._on_worker_stopped)
+        self._claude_worker.tool_update.connect(self._on_tool_update)
+        # SDK 权限请求信号
+        self._claude_worker.permission_request.connect(self._on_sdk_permission_request)
         self._claude_thread.finished.connect(self._on_claude_thread_done)
         self._claude_thread.started.connect(self._claude_worker.run)
         self._claude_thread.start()
@@ -1887,6 +3787,11 @@ class MainWindow(QMainWindow):
         """更新过程态状态，避免界面看起来无响应。"""
         if not self._has_stream_text:
             self.center_panel.update_processing_status(status_text)
+
+    def _on_tool_update(self, tool_info):
+        """收到工具调用更新。"""
+        if hasattr(self, "right_panel"):
+            self.right_panel.update_task(tool_info)
 
     def _on_claude_result(self, result):
         """Claude 执行完成。"""
@@ -1915,19 +3820,14 @@ class MainWindow(QMainWindow):
         self._handle_error(error_msg)
 
     def _on_worker_stopped(self):
-        """ClaudeWorker 被用户主动终止——只退出线程，清理在 _on_claude_thread_done 统一处理。"""
+        """Claude 被用户主动终止——只退出线程，清理在 _on_claude_thread_done 统一处理。"""
         print(f"[Stop] Worker 已停止，等待线程退出")
         self._claude_thread.quit()
 
     def _on_claude_thread_done(self):
-        """ClaudeWorker 线程已结束——统一清理入口。"""
-        if self._stop_pending:
-            # 用户主动终止，执行停止清理
-            self._stop_pending = False
-            print(f"[Stop] 执行停止清理")
-            self._on_stop_cleanup()
-        elif self._building_response:
-            # 非正常完成（非 result、非 error），也做停止清理
+        """Claude 线程已结束——统一清理入口。"""
+        if self._building_response:
+            # 非正常完成（非 result、非 error），做停止清理
             print(f"[Stop] 线程异常退出，执行清理")
             self._on_stop_cleanup()
 
@@ -1937,6 +3837,7 @@ class MainWindow(QMainWindow):
             return  # 已经清理过了
         self._building_response = False
         self._last_thinking_segments = []
+        self._last_diff_data = None
         self.center_panel.set_building_response(False)
         self.center_panel.set_thinking_block_state(False)
         # 移除最后的"思考中..."占位消息
@@ -1946,156 +3847,49 @@ class MainWindow(QMainWindow):
         """收到 AI 的流式回复片段（主线程）。"""
         self._has_stream_text = True
         self.center_panel.update_last_message(text)
-        if self._looks_like_permission_prompt(text):
-            self._show_permission_prompt(text)
 
-    def _on_done(self, full_text):
-        """AI 回复完成（子线程）。"""
-        self._building_response = False
-        self._finish_response(full_text)
-
-    @staticmethod
-    def _looks_like_permission_prompt(text):
-        if not text:
-            return False
-        candidates = [
-            "需要你的权限",
-            "请批准",
-            "批准这次编辑",
-            "approve",
-            "permission",
-        ]
-        lower_text = text.lower()
-        for c in candidates:
-            if c.lower() in lower_text:
-                return True
-        return False
-
-    def _show_permission_prompt(self, text):
-        """权限请求提示：内嵌到输入框上方（更自然）。"""
-        if self._permission_prompt_shown:
-            return
-        self._permission_prompt_shown = True
-        # 这是“文本级提示”兜底；真实权限由 PermissionRequest hook 触发并驱动 UI
-        self.center_panel.show_permission_request("需要权限继续（若系统未弹出审批条，请检查 hooks 是否启用）")
+    def _on_sdk_permission_request(self, tool_name, input_data):
+        """SDKClaudeWorker 发来的权限请求（在主线程执行）。"""
+        summary = f"权限申请：{tool_name}"
+        if tool_name == "Write":
+            fp = input_data.get("file_path", "")
+            if fp:
+                summary += f"\n{fp}"
+        elif tool_name == "Bash":
+            cmd = input_data.get("command", "")
+            if cmd:
+                summary += f"\n{cmd}"
+        print(f"[SDK Permission] {summary}")
+        # 设置 SDK 权限等待标志
+        self._sdk_permission_waiting = True
+        self.center_panel.show_permission_request(summary)
 
     def _on_permission_accept(self):
-        """用户允许权限：如果是 hook 权限请求则回写决策；否则按文本级继续处理。"""
-        if self._pending_permission:
-            self._pending_permission["decision"] = {"behavior": "allow"}
-            print("[Permission] GUI allow")
-            self._pending_permission["done_event"].set()
+        """用户允许权限。"""
+        if getattr(self, "_sdk_permission_waiting", False) and self._claude_worker:
+            self._sdk_permission_waiting = False
+            self._claude_worker.set_permission_decision("allow")
             self.center_panel.hide_permission_request()
             return
         self.center_panel.hide_permission_request()
-        # 让 AI “收到” 继续指令：直接作为用户消息发送
         self.center_panel.input_box.setText("可以编辑，请继续")
         self._on_send()
 
     def _on_permission_reject(self):
-        """用户拒绝权限：如果是 hook 权限请求则回写拒绝；否则只隐藏提示。"""
-        if self._pending_permission:
-            self._pending_permission["decision"] = {"behavior": "deny", "message": "用户在 GUI 中拒绝了该操作", "interrupt": False}
-            print("[Permission] GUI deny")
-            self._pending_permission["done_event"].set()
+        """用户拒绝权限。"""
+        if getattr(self, "_sdk_permission_waiting", False) and self._claude_worker:
+            self._sdk_permission_waiting = False
+            self._claude_worker.set_permission_decision("deny")
             self.center_panel.hide_permission_request()
             return
         self.center_panel.hide_permission_request()
 
-    def _start_permission_hook_server(self):
-        """启动本地 HTTP server，供 Claude Code PermissionRequest hook 回调。"""
-        try:
-            project_dir = os.path.dirname(os.path.abspath(__file__))
-            claude_dir = os.path.join(project_dir, ".claude")
-            os.makedirs(claude_dir, exist_ok=True)
-
-            token = secrets.token_hex(16)
-            self._hook_token = token
-
-            window = self
-
-            class Handler(BaseHTTPRequestHandler):
-                def _send_json(self, code, payload):
-                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-                    self.send_response(code)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
-
-                def do_POST(self):
-                    if self.path != "/permission":
-                        return self._send_json(404, {"error": "not_found"})
-                    auth = self.headers.get("X-CCVIEW-TOKEN", "")
-                    if not auth or auth != window._hook_token:
-                        return self._send_json(401, {"error": "unauthorized"})
-                    length = int(self.headers.get("Content-Length", "0") or "0")
-                    raw = self.rfile.read(length) if length > 0 else b"{}"
-                    try:
-                        event = json.loads(raw.decode("utf-8"))
-                    except Exception:
-                        return self._send_json(400, {"error": "bad_json"})
-
-                    done = threading.Event()
-                    pending = {"event": event, "done_event": done, "decision": None}
-                    window._pending_permission = pending
-                    print(f"[Permission] request tool={event.get('tool_name')} mode={event.get('permission_mode')}")
-
-                    tool_name = event.get("tool_name", "")
-                    tool_input = event.get("tool_input", {})
-                    summary = f"权限申请：{tool_name}"
-                    if tool_name == "Bash" and isinstance(tool_input, dict):
-                        cmd = tool_input.get("command", "")
-                        if cmd:
-                            summary = f"权限申请：运行命令\n{cmd}"
-                    elif tool_name in ("Write", "Edit") and isinstance(tool_input, dict):
-                        fp = tool_input.get("file_path", "") or tool_input.get("path", "")
-                        if fp:
-                            summary = f"权限申请：修改文件\n{fp}"
-
-                    # 通过 Qt 主线程更新 UI
-                    QTimer.singleShot(0, lambda: window.center_panel.show_permission_request(summary))
-
-                    # 阻塞等待用户点击（最长 10 分钟）
-                    if not done.wait(timeout=600):
-                        window._pending_permission = None
-                        QTimer.singleShot(0, lambda: window.center_panel.hide_permission_request())
-                        return self._send_json(200, {"behavior": "deny", "message": "权限请求超时未响应", "interrupt": False})
-
-                    decision = pending.get("decision") or {"behavior": "allow"}
-                    print(f"[Permission] respond {decision}")
-                    window._pending_permission = None
-                    QTimer.singleShot(0, lambda: window.center_panel.hide_permission_request())
-                    return self._send_json(200, decision)
-
-                def log_message(self, format, *args):
-                    return  # 静默
-
-            # 用动态端口
-            server = HTTPServer(("127.0.0.1", 0), Handler)
-            self._hook_server = server
-            port = server.server_address[1]
-
-            # 写出给 hook 读取
-            hook_info_path = os.path.join(claude_dir, "cc_view_hook.json")
-            with open(hook_info_path, "w", encoding="utf-8") as f:
-                json.dump({"port": port, "token": token}, f, ensure_ascii=False, indent=2)
-
-            def serve():
-                try:
-                    server.serve_forever()
-                except Exception:
-                    pass
-
-            th = threading.Thread(target=serve, daemon=True)
-            th.start()
-            self._hook_server_thread = th
-        except Exception as e:
-            print(f"[HookServer] 启动失败: {e}")
-
     def _finish_response(self, full_text):
         """在主线程完成回复处理。"""
         self.center_panel.set_thinking_block_state(False)
+
+        # AI 回复完成后，自动获取 git diff 并添加到消息区
+        self._add_diff_card_if_needed()
 
         # 多轮 tool_use 场景下，result 可能只含最后一段文本。
         # 若流式阶段已显示更完整内容，优先保留更完整版本，避免被覆盖。
@@ -2105,8 +3899,6 @@ class MainWindow(QMainWindow):
             final_text = displayed_text
 
         self.center_panel.update_last_message(final_text)
-        if self._looks_like_permission_prompt(final_text):
-            self._show_permission_prompt(final_text)
         self._session_last_active = datetime.now()  # 更新活跃时间
 
         if self.current_conv_id:
@@ -2125,6 +3917,10 @@ class MainWindow(QMainWindow):
                     assistant_msg["thinking_duration_ms"] = thinking_ms
                     assistant_msg["thinking_segments"] = self._last_thinking_segments
                     self._last_thinking_segments = []  # 消费后清空
+                # 保存 diff 数据
+                if self._last_diff_data:
+                    assistant_msg["diff_data"] = self._last_diff_data
+                    self._last_diff_data = None
                 messages.append(assistant_msg)
                 session_id = self._pending_session_id or conv.get("session_id")
 
@@ -2143,6 +3939,37 @@ class MainWindow(QMainWindow):
                 self._pending_session_id = None
 
         self.center_panel.set_building_response(False)
+
+    def _add_diff_card_if_needed(self):
+        """AI 回复完成后，检查 git diff 并添加到消息区。"""
+        try:
+            diff_text = DiffParser.get_all_diffs(
+                working_dir=self._project_dir
+            )
+            if diff_text and diff_text.strip():
+                files_diff = DiffParser.parse(diff_text)
+                if files_diff:
+                    self.center_panel.add_diff_card(files_diff)
+                    # 保存 diff 数据，用于持久化
+                    self._last_diff_data = [{
+                        "file": f["file"],
+                        "additions": f["additions"],
+                        "deletions": f["deletions"],
+                        "hunks": [{
+                            "old_start": h["old_start"],
+                            "old_count": h["old_count"],
+                            "new_start": h["new_start"],
+                            "new_count": h["new_count"],
+                            "lines": h["lines"],
+                        } for h in f["hunks"]]
+                    } for f in files_diff if f["hunks"]]
+                    print(f"[Diff] 检测到 {len(files_diff)} 个文件变更")
+                else:
+                    print("[Diff] git diff 输出无法解析")
+            else:
+                print("[Diff] 无文件变更")
+        except Exception as e:
+            print(f"[Diff] 获取 diff 失败: {e}")
 
     def _generate_title(self, ai_text):
         """规则生成临时标题——优先用用户第一条消息的关键词。"""
@@ -2222,7 +4049,6 @@ class MainWindow(QMainWindow):
         """用户主动终止 AI 回复。"""
         if not self._building_response or not hasattr(self, '_claude_worker'):
             return
-        self._stop_pending = True
         self._claude_worker.stop()
         print(f"[Stop] 已终止 Claude 回复")
 
@@ -2231,6 +4057,7 @@ class MainWindow(QMainWindow):
         self.center_panel.set_building_response(False)
         self.center_panel.set_thinking_block_state(False)
         self._last_thinking_segments = []
+        self._last_diff_data = None
 
     def _check_session_timeout(self):
         """定时检查 session 是否超时。"""
@@ -2280,40 +4107,174 @@ class MainWindow(QMainWindow):
     def _on_delete_requested(self, conv_id):
         """右键 → 删除。"""
         if self._building_response:
-            QMessageBox.warning(self, "提示", "请等待当前对话完成")
+            self._show_bounce_dialog("提示", "请等待当前对话完成", "warning")
             return
 
         conv = load_conversation(conv_id)
         if not conv:
             return
         title = conv.get("title", "未命名")
-        reply = QMessageBox.question(
-            self, "确认删除", f"确定要删除对话「{title}」吗？\n此操作不可恢复。",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+        
+        # 使用QQ弹弹对话框
+        dialog = self._create_bounce_dialog(
+            "确认删除", 
+            f"确定要删除对话「{title}」吗？\n此操作不可恢复。",
+            "question"
         )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
+        
+        def on_confirm():
+            # 删除文件
+            filepath = os.path.join(DATA_DIR, f"{conv_id}.json")
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
-        # 删除文件
-        filepath = os.path.join(DATA_DIR, f"{conv_id}.json")
-        if os.path.exists(filepath):
-            os.remove(filepath)
+            # 如果删除的是当前对话，切换或清空
+            if self.current_conv_id == conv_id:
+                self.current_conv_id = None
+                self._pending_session_id = None
+                if self._pending_new_conv_id == conv_id:
+                    self._pending_new_conv_id = None
+                # 尝试选中相邻对话
+                convs = list_conversations()
+                if convs:
+                    self._select_conversation(convs[0]["id"])
+                else:
+                    self.center_panel.show_landing()
 
-        # 如果删除的是当前对话，切换或清空
-        if self.current_conv_id == conv_id:
-            self.current_conv_id = None
-            self._pending_session_id = None
-            if self._pending_new_conv_id == conv_id:
-                self._pending_new_conv_id = None
-            # 尝试选中相邻对话
-            convs = list_conversations()
-            if convs:
-                self._select_conversation(convs[0]["id"])
-            else:
-                self.center_panel.show_landing()
+            self._refresh_sidebar_preview()
+        
+        dialog.accepted.connect(on_confirm)
+        dialog.show()
 
-        self._refresh_sidebar_preview()
+    def _create_bounce_dialog(self, title, message, dialog_type="info"):
+        """创建QQ弹弹对话框"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+        from PyQt6.QtCore import Qt
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setFixedSize(400, 200)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        
+        # 主题样式
+        theme = theme_manager.get_current_theme()
+        
+        # 对话框布局
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # 图标和消息
+        message_layout = QHBoxLayout()
+        
+        # 图标
+        icon_label = QLabel()
+        icon_map = {
+            "question": "❓",
+            "warning": "⚠️", 
+            "info": "ℹ️",
+            "error": "❌"
+        }
+        icon_label.setText(icon_map.get(dialog_type, "ℹ️"))
+        icon_label.setStyleSheet(f"font-size: 24px; padding: 10px;")
+        message_layout.addWidget(icon_label)
+        
+        # 消息文本
+        msg_label = QLabel(message)
+        msg_label.setWordWrap(True)
+        msg_label.setStyleSheet(f"""
+            font-size: 14px;
+            color: {theme['text_primary']};
+            padding: 10px;
+            line-height: 1.4;
+        """)
+        message_layout.addWidget(msg_label)
+        
+        layout.addLayout(message_layout)
+        
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        if dialog_type == "question":
+            # 取消按钮
+            cancel_btn = QPushButton("取消")
+            cancel_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 8px;
+                    padding: 8px 20px;
+                    font-size: 14px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{
+                    background-color: {theme['bg_input']};
+                }}
+            """)
+            cancel_btn.clicked.connect(dialog.reject)
+            button_layout.addWidget(cancel_btn)
+            
+            # 确认按钮
+            confirm_btn = QPushButton("确认删除")
+            confirm_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {theme['red']};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 20px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    background-color: {theme['red_hover']};
+                }}
+            """)
+            confirm_btn.clicked.connect(dialog.accept)
+            button_layout.addWidget(confirm_btn)
+        else:
+            # 确定按钮
+            ok_btn = QPushButton("确定")
+            ok_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {theme['primary']};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 20px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    background-color: {theme['primary_hover']};
+                }}
+            """)
+            ok_btn.clicked.connect(dialog.accept)
+            button_layout.addWidget(ok_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # 对话框样式
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {theme['bg_card']};
+                border: 1px solid {theme['border']};
+                border-radius: 12px;
+            }}
+        """)
+        
+        # 应用弹跳动画
+        dialog.show()
+        animation_manager.bounce(dialog, 600)
+        
+        return dialog
+    
+    def _show_bounce_dialog(self, title, message, dialog_type="info"):
+        """显示QQ弹弹对话框（仅显示，无需回调）"""
+        dialog = self._create_bounce_dialog(title, message, dialog_type)
+        dialog.exec()
 
     def _new_conversation(self, silent=False):
         if self._building_response:
@@ -2379,13 +4340,7 @@ class MainWindow(QMainWindow):
             self.center_panel.add_message("user", f"[已上传图片: {os.path.basename(filepath)}]")
 
     def closeEvent(self, event):
-        # 停止本地权限 hook server
-        try:
-            if getattr(self, "_hook_server", None):
-                self._hook_server.shutdown()
-        except Exception:
-            pass
-        # 终止 ClaudeWorker 子线程
+        # 终止 Claude 子线程
         if hasattr(self, '_claude_thread') and self._claude_thread.isRunning():
             self._claude_thread.quit()
             self._claude_thread.wait(2000)
@@ -2394,66 +4349,83 @@ class MainWindow(QMainWindow):
             self._title_worker.terminate()
             self._title_worker.wait(2000)
         self.claude_client.stop()
-        self._worker_thread.quit()
-        self._worker_thread.wait(2000)
+        # 临时禁用git线程清理
+        # if hasattr(self, '_worker_thread'):
+        #     self._worker_thread.quit()
+        #     self._worker_thread.wait(2000)
         super().closeEvent(event)
 
 
 def main():
-    # 检查 claude CLI 是否已安装
-    if subprocess.call(["claude", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
-        print("错误: 未找到 claude 命令。")
-        print("请先安装 Claude Code: https://docs.anthropic.com/zh-CN/docs/claude-code/CLI")
-        sys.exit(1)
+    try:
+        # 检查 claude CLI 是否已安装
+        if subprocess.call(["claude", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+            print("错误: 未找到 claude 命令。")
+            print("请先安装 Claude Code: https://docs.anthropic.com/zh-CN/docs/claude-code/CLI")
+            sys.exit(1)
 
-    app = QApplication([])
-    app.setApplicationName("Claude Code 桌面助手")
-    # 设置窗口图标
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "ico.png")
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
-    # 全局深色滚动条样式
-    scrollbar_w = 8
-    scrollbar_c = THEME.get('border_focus', '#6366F1')
-    scrollbar_bg = THEME.get('bg_primary', '#0F0F14')
-    app.setStyleSheet(f"""
-        QScrollBar:vertical {{
-            background: {scrollbar_bg}; width: {scrollbar_w}px;
-            border-radius: 4px; margin: 0px;
-        }}
-        QScrollBar::handle:vertical {{
-            background: #3D3D5C; border-radius: 4px;
-            min-height: 20px;
-        }}
-        QScrollBar::handle:vertical:hover {{
-            background: {scrollbar_c};
-        }}
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
-        QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-            background: none; border: none;
-        }}
-        QScrollBar:horizontal {{
-            background: {scrollbar_bg}; height: {scrollbar_w}px;
-            border-radius: 4px; margin: 0px;
-        }}
-        QScrollBar::handle:horizontal {{
-            background: #3D3D5C; border-radius: 4px;
-            min-width: 20px;
-        }}
-        QScrollBar::handle:horizontal:hover {{
-            background: {scrollbar_c};
-        }}
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
-        QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal,
-        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-            background: none; border: none;
-        }}
-    """)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+        app = QApplication([])
+        app.setApplicationName("Claude Code 桌面助手")
+        
+        # 设置窗口图标
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "ico.png")
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+        
+        # 全局深色滚动条样式
+        scrollbar_w = 8
+        scrollbar_c = theme_manager.get_color('border_focus')
+        scrollbar_bg = THEME.get('bg_primary', '#0F0F14')
+        app.setStyleSheet(f"""
+            QScrollBar:vertical {{
+                background: {scrollbar_bg}; width: {scrollbar_w}px;
+                border-radius: 4px; margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: #3D3D5C; border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {scrollbar_c};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+            QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none; border: none;
+            }}
+            QScrollBar:horizontal {{
+                background: {scrollbar_bg}; height: {scrollbar_w}px;
+                border-radius: 4px; margin: 0px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background: #3D3D5C; border-radius: 4px;
+                min-width: 20px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background: {scrollbar_c};
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
+            QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal,
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: none; border: none;
+            }}
+        """)
+        
+        window = MainWindow()
+        window.show()
+
+        # 处理 Ctrl+C 优雅退出
+        import signal
+        signal.signal(signal.SIGINT, lambda signum, frame: window.close())
+
+        return app.exec()
+        
+    except Exception as e:
+        print(f"程序启动失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/wl/开发/My File/CC-view/.claude/hooks/permission_bridge.py"
+          }
+        ]
+      }
+    ]
+  }
+}

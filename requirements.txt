@@ -1,1 +1,6 @@
 PyQt6>=6.0
+mistune>=3.0
+# claude-agent-sdk 已打包到项目目录，无需 pip 安装
+# 以下为其运行时依赖：
+anyio>=4.0.0
+mcp>=0.1.0

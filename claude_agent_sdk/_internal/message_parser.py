@@ -109,7 +109,7 @@ def parse_message(data: dict[str, Any]) -> Message | None:
                         case "thinking":
                             content_blocks.append(
                                 ThinkingBlock(
-                                    thinking=block["thinking"],
+                                    thinking=block.get("thinking", ""),
                                     signature=block["signature"],
                                 )
                             )

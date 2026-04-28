@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QScrollArea, QFrame,
     QDialog, QFileDialog, QMessageBox, QSizePolicy, QMenu,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QPoint, QRect, QMetaObject, Qt as Qt_Type
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, pyqtSlot, QPropertyAnimation, QEasingCurve, QPoint, QRect, QMetaObject, Qt as Qt_Type, QVariantAnimation
 from PyQt6.QtGui import QFont, QColor, QIcon, QPalette, QPainter, QTextOption
 
 from claude_client import ClaudeClient
@@ -42,39 +42,41 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 # 深色主题（参考 Gemini/ChatGPT/Claude 暖灰风格）
 DARK_THEME = {
-    "bg_primary": "#212121",     # 暖灰 主背景/消息区（参考 ChatGPT/千问）
-    "bg_secondary": "#1A1A1A",   # 深灰 侧边栏背景（比主背景略深，形成层次）
-    "bg_card": "#2A2A2A",        # 卡片/气泡背景（比主背景略亮）
-    "bg_input": "#2A2A2A",       # 输入框背景（同卡片，区分于消息区）
-    "border": "#333333",         # 淡灰边框（暖色调）
-    "border_focus": "#818CF8",   # 紫蓝聚焦边框
-    "primary": "#818CF8",        # 紫蓝主题色（参考千问/Claude）
-    "primary_hover": "#A5B4FC",  # 悬停色
-    "red": "#EF4444",            # 停止/错误
+    "bg_primary": "#1a1f2e",      # 主背景/消息区
+    "bg_secondary": "#151922",    # 侧边栏背景（深灰蓝）
+    "bg_card": "#1e2335",         # 卡片背景（比侧边栏略亮）
+    "bg_input": "#1e2335",        # 输入框背景
+    "border": "#2a2f42",          # 细边框
+    "border_focus": "#60A5FA",    # 聚焦边框
+    "primary": "#60A5FA",         # 明亮蓝（选中项/按钮）
+    "primary_hover": "#93C5FD",   # 悬停色
+    "red": "#EF4444",
     "red_hover": "#DC2626",
-    "green": "#34D399",          # 翠绿（提高对比度）
+    "green": "#34D399",
     "green_hover": "#10B981",
     "orange": "#FBBF24",
     "purple": "#A78BFA",
     "teal": "#5EEAD4",
-    "text_primary": "#EAEAEA",   # 亮灰主文字（接近白色，高对比）
-    "text_secondary": "#A0A0A0", # 中灰次要文字
-    "text_tertiary": "#666666",  # 弱提示
-    "user_bubble": "#2A2A2A",    # 用户气泡（同卡片）
-    "user_bubble_gradient_end": "#1A3A2A",  # 用户气泡渐变结束色（深绿）
-    "user_text": "#EAEAEA",
-    "ai_bubble": "#2A2A2A",      # AI 气泡（同卡片）
-    "ai_text": "#EAEAEA",
-    "system_bubble": "#3A2A1A",  # 系统气泡（暖棕色调）
+    "text_primary": "#E8EAED",    # 主文字
+    "text_secondary": "#9AA0A6",  # 次要文字
+    "text_tertiary": "#6B7280",   # 弱提示
+    "user_bubble": "#1e2335",
+    "user_bubble_gradient_end": "#1A3A2A",
+    "user_text": "#E8EAED",
+    "ai_bubble": "#1e2335",
+    "ai_text": "#E8EAED",
+    "system_bubble": "#3A2A1A",
     "system_text": "#FBBF24",
-    "thinking_bg": "#1E1E1E",    # 思考块背景（比主背景略深）
-    "thinking_border": "#333333",
-    "switch_track": "#333333",   # Switch轨道
-    "switch_thumb": "#818CF8",   # Switch按钮
+    "thinking_bg": "#1A1C22",
+    "thinking_border": "#2A2D35",
+    "switch_track": "#2A2D35",
+    "switch_thumb": "#FFFFFF",
     "switch_thumb_disabled": "#555555",
-    "shadow": "rgba(0, 0, 0, 0.4)", # 阴影色
-    "gradient_start": "#818CF8", # 渐变起始
-    "gradient_end": "#A78BFA",   # 渐变结束
+    "shadow": "rgba(0, 0, 0, 0.3)",
+    "gradient_start": "#60A5FA",  # 按钮渐变：蓝
+    "gradient_end": "#A78BFA",    # 按钮渐变：紫
+    "scrollbar_handle": "#A78BFA",  # 滚动条手柄（紫色）
+    "scrollbar_handle_hover": "#C4B5FD",  # 滚动条悬停
 }
 
 # 浅色主题（现代化高级设计）
@@ -100,15 +102,15 @@ LIGHT_THEME = {
     "user_bubble": "#EEF2FF",   # 淡紫用户气泡
     "user_bubble_gradient_end": "#C7D2FE",  # 用户气泡渐变结束色（浅紫）
     "user_text": "#4338CA",
-    "ai_bubble": "#F9FAFB",     # 极浅灰 AI 气泡
+    "ai_bubble": "#F3F4F6",     # 浅灰 AI 气泡（与主背景区分）
     "ai_text": "#111827",
     "system_bubble": "#FEF3C7", # 系统气泡
     "system_text": "#92400E",
     "thinking_bg": "#F3F4F6",   # 思考块背景
     "thinking_border": "#D1D5DB",
     "switch_track": "#D1D5DB",   # Switch轨道
-    "switch_thumb": "#6366F1",   # Switch按钮
-    "switch_thumb_disabled": "#9CA3AF",
+    "switch_thumb": "#374151",   # 开启时拇指（深灰，在紫色轨道和浅色背景上都清晰）
+    "switch_thumb_disabled": "#9CA3AF",  # 关闭时拇指（浅灰，在灰色轨道上可见）
     "shadow": "rgba(0, 0, 0, 0.05)", # 阴影色
     "gradient_start": "#6366F1", # 渐变起始
     "gradient_end": "#8B5CF6",   # 渐变结束
@@ -160,6 +162,11 @@ theme_manager = ThemeManager()
 
 # 临时兼容性：为现有代码提供THEME变量
 THEME = theme_manager.get_current_theme()
+
+# 气泡最大宽度（用户靠右/靠左名称对齐参考）
+# 用户和 AI 气泡最大宽度（相同，参考标签名对齐）
+USER_BUBBLE_MAX_WIDTH = 450
+AI_BUBBLE_MAX_WIDTH = 450
 
 # ==================== 高级动画系统 ====================
 
@@ -491,80 +498,92 @@ animation_manager = AnimationManager()
 # ==================== 自定义Switch组件 ====================
 
 class ModernSwitch(QWidget):
-    """现代化Switch开关组件 — 支持平滑滑动动画"""
+    """现代化Switch开关组件 — 平滑滑动动画"""
 
     toggled = pyqtSignal(bool)
+
+    ANIM_DURATION = 200  # 动画时长 ms
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(50, 26)
         self._is_checked = False
-        self._anim_value = 0  # 0=关闭, 1=打开
-        self._anim_progress = 0.0  # 动画进度 0.0-1.0
-        self._anim_timer = QTimer(self)
-        self._anim_timer.timeout.connect(self._anim_step)
+        self._thumb_x = 2
+        self._animating = False
+        self._anim_from = 2
+        self._anim_to = 2
+        self._anim_start = 0
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
 
     def setChecked(self, checked):
-        """设置开关状态（带动画）"""
-        if self._is_checked != checked:
-            self._is_checked = checked
-            self._anim_progress = 0.0
-            self._anim_timer.start(1)
-            self.toggled.emit(checked)
+        """设置状态（带动画），允许在动画中途切换方向。"""
+        if self._is_checked == checked:
+            return
+        self._is_checked = checked
+        # 总是重新启动动画，从当前 thumb 位置开始
+        self._anim_from = self._thumb_x
+        self._anim_to = self.width() - 26 if checked else 2
+        self._anim_start = self._now_ms()
+        self._animating = True
+        self._timer.start(16)
+        self.toggled.emit(checked)
 
     def isChecked(self):
-        """获取开关状态"""
         return self._is_checked
 
-    def _anim_step(self):
-        """动画步进"""
-        self._anim_progress += 0.12
-        if self._anim_progress >= 1.0:
-            self._anim_progress = 1.0
-            self._anim_timer.stop()
+    @staticmethod
+    def _now_ms():
+        import time
+        return int(time.time() * 1000)
+
+    def _tick(self):
+        elapsed = self._now_ms() - self._anim_start
+        t = min(elapsed / self.ANIM_DURATION, 1.0)
+        eased = 1.0 - (1.0 - t) ** 3
+        self._thumb_x = int(self._anim_from + eased * (self._anim_to - self._anim_from))
         self.update()
+        if t >= 1.0:
+            self._thumb_x = self._anim_to
+            self._animating = False
+            self._timer.stop()
+            self.update()
 
     def mousePressEvent(self, event):
-        """鼠标点击事件"""
         if event.button() == Qt.MouseButton.LeftButton:
             self.setChecked(not self._is_checked)
 
     def paintEvent(self, event):
-        """绘制Switch组件"""
         try:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
             theme = theme_manager.get_current_theme()
+            total = max(self.width() - 28, 1)
+            p = min(max(self._thumb_x - 2, 0) / total, 1.0)
 
-            # 绘制轨道
-            track_color = QColor(theme.get("switch_track", "#CBD5E1"))
-            if self._is_checked:
-                track_color = QColor(theme.get("primary", "#3B82F6"))
-            painter.setBrush(track_color)
+            track_off = QColor(theme.get("switch_track", "#D1D5DB"))
+            track_on = QColor(theme.get("primary", "#818CF8"))
+            painter.setBrush(self._lerp(track_off, track_on, p))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(self.rect(), 13, 13)
 
-            # 绘制拇指 — 平滑过渡位置
-            thumb_color = QColor(theme.get("switch_thumb", "#3B82F6"))
-            if not self._is_checked:
-                thumb_color = QColor(theme.get("switch_thumb_disabled", "#94A3B8"))
-            painter.setBrush(thumb_color)
-
-            # 用 ease-out 缓动计算平滑位置
-            progress = min(max(self._anim_progress, 0.0), 1.0)
-            eased = 1.0 - (1.0 - progress) ** 3  # easeOutCubic
-            thumb_x = int(2 + eased * (self.width() - 26))
-            thumb_rect = QRect(thumb_x, 3, 20, 20)
-            painter.drawEllipse(thumb_rect)
-
-        except (KeyboardInterrupt, SystemExit):
-            raise
+            thumb_off = QColor(theme.get("switch_thumb_disabled", "#9CA3AF"))
+            thumb_on = QColor(theme.get("switch_thumb", "#FFFFFF"))
+            painter.setBrush(self._lerp(thumb_off, thumb_on, p))
+            painter.drawEllipse(self._thumb_x, 3, 20, 20)
         except Exception:
             pass
 
+    @staticmethod
+    def _lerp(c1, c2, t):
+        return QColor(
+            int(c1.red() + (c2.red() - c1.red()) * t),
+            int(c1.green() + (c2.green() - c1.green()) * t),
+            int(c1.blue() + (c2.blue() - c1.blue()) * t),
+        )
+
     def sizeHint(self):
-        """推荐尺寸"""
         return self.size()
 
 # ==================== 内置数据 ====================
@@ -882,6 +901,7 @@ class SDKClaudeWorker(QObject):
             permission_mode=self.permission_mode,
             can_use_tool=self._can_use_tool,
             include_partial_messages=True,
+            thinking={"type": "enabled", "budget_tokens": 4096, "display": "summarized"},  # 明确启用 thinking
         )
         if self.session_id:
             options.resume = self.session_id
@@ -958,6 +978,10 @@ class SDKClaudeWorker(QObject):
                 delta_type = delta.get("type", "")
                 if delta_type == "text_delta":
                     self.chunk_ready.emit(delta.get("text", ""))
+                elif delta_type == "thinking_delta":
+                    thinking_text = delta.get("thinking", "")
+                    print(f"[SDK DEBUG] thinking_delta: {repr(thinking_text[:100])}")
+                    self.thinking_ready.emit(thinking_text, 0)
 
             elif event_type == "content_block_stop":
                 pass  # 思考/工具的完成信息在 AssistantMessage 中处理
@@ -967,7 +991,9 @@ class SDKClaudeWorker(QObject):
                 if isinstance(block, TextBlock):
                     self.chunk_ready.emit(block.text)
                 elif isinstance(block, ThinkingBlock):
-                    self.thinking_ready.emit(block.thinking, 0)
+                    self.thinking_started.emit()
+                    thinking_text = getattr(block, 'thinking', '') or ''
+                    self.thinking_ready.emit(thinking_text, 0)
 
         elif isinstance(msg, ResultMessage):
             if msg.is_error:
@@ -1149,8 +1175,6 @@ class MessageRow(QWidget):
 
         bubble = QFrame()
         bubble.setObjectName("bubble")
-        # 不设置固定宽度，让内容自然撑开
-        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         bubble_layout = QVBoxLayout(bubble)
         bubble_layout.setContentsMargins(0, 0, 0, 0)
@@ -1168,16 +1192,20 @@ class MessageRow(QWidget):
         content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content.setWordWrapMode(QTextOption.WrapMode.WordWrap)
-        content.setMinimumWidth(180)
-        content.setMaximumWidth(550)
         # 去掉 QTextEdit 默认的内边距
         content.document().setDocumentMargin(0)
-        # 初始用纯文本显示（流式输出期间不渲染 Markdown）
-        content.setPlainText(text)
+        _max_w = USER_BUBBLE_MAX_WIDTH if role=="user" else AI_BUBBLE_MAX_WIDTH
+        bubble.setMaximumWidth(_max_w)
+        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content.setStyleSheet("font-size: 13px; padding: 4px 10px 8px 10px; background-color: transparent;")
         content.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
+        # Auto-height: set textWidth and initial text, then connect
+        content.document().setTextWidth(_max_w - 30)
+        content.setPlainText(text)
+        content.document().contentsChanged.connect(lambda: self._sync_content_height())
         bubble_layout.addWidget(content)
 
         # 样式 — 根据当前主题动态配色
@@ -1206,6 +1234,7 @@ class MessageRow(QWidget):
             bubble.setStyleSheet(f"""
                 #bubble {{
                     background-color: {THEME['ai_bubble']}; border-radius: 12px;
+                    border: 1px solid {THEME['border']};
                 }}
                 #bubble QLabel, #bubble QTextEdit {{ color: {THEME['ai_text']}; background: transparent; }}
             """)
@@ -1235,6 +1264,27 @@ class MessageRow(QWidget):
         self._thinking_dots = (self._thinking_dots + 1) % 4
         dots = "." * self._thinking_dots
         self._content_label.setPlainText(f"🤔 思考中{dots}")
+
+    def _sync_content_height(self):
+        """同步内容高度：根据当前内容和宽度计算并设置精确高度。"""
+        try:
+            cl = self._content_label
+            if cl is None:
+                return
+            vw = cl.viewport().width()
+            if vw >= 80:
+                cl.document().setTextWidth(vw)
+            # 无论视口是否就绪，都要根据当前 textWidth 计算高度
+            doc_h = int(cl.document().size().height())
+            h = max(36, doc_h + 16)
+            cl.setFixedHeight(h)
+        except (RuntimeError, AttributeError):
+            pass
+
+    def resizeEvent(self, event):
+        """窗口尺寸变化时重新同步高度。"""
+        super().resizeEvent(event)
+        self._sync_content_height()
 
     def _start_processing_animation(self, base_text):
         """启动处理中动画（转圈）。"""
@@ -1275,6 +1325,10 @@ class MessageRow(QWidget):
             if hasattr(self, '_type_timer'):
                 self._type_timer.stop()
                 del self._type_timer
+            try:
+                self._sync_content_height()
+            except RuntimeError:
+                pass
             return
         # 动画期间用纯文本
         self._content_label.setPlainText(self._target_text[:self._displayed_chars])
@@ -1319,6 +1373,10 @@ class MessageRow(QWidget):
                 self._content_label.setHtml(html)
             else:
                 self._content_label.setPlainText(text)
+            try:
+                self._sync_content_height()
+            except RuntimeError:
+                pass
             return
         # 新的更长文本，继续动画
         self._target_text = text
@@ -1360,6 +1418,7 @@ class MessageRow(QWidget):
             self._bubble.setStyleSheet(f"""
                 #bubble {{
                     background-color: {theme['ai_bubble']}; border-radius: 12px;
+                    border: 1px solid {theme['border']};
                 }}
                 #bubble QLabel, #bubble QTextEdit {{ color: {theme['ai_text']}; background: transparent; }}
             """)
@@ -1376,6 +1435,10 @@ class MessageRow(QWidget):
                 html = MarkdownRenderer.to_html(self._raw_text, theme)
                 if html and hasattr(self, '_content_label') and self._content_label is not None:
                     self._content_label.setHtml(html)
+                    try:
+                        self._sync_content_height()
+                    except RuntimeError:
+                        pass
             if hasattr(self, '_prefix_label') and self._prefix_label is not None:
                 self._prefix_label.setStyleSheet(
                     f"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; "
@@ -1734,11 +1797,11 @@ class DiffFileCard(QFrame):
             self._arrow.setStyleSheet(f"color: {theme['text_tertiary']}; font-size: 12px;")
         if hasattr(self, '_name_label') and self._name_label is not None:
             self._name_label.setStyleSheet(f"color: {theme['text_primary']}; font-size: 13px; font-weight: bold;")
-        if hasattr(self, '_add_label'):
+        if hasattr(self, '_add_label') and self._add_label is not None:
             self._add_label.setStyleSheet(f"color: {theme['green']}; font-size: 12px; font-weight: bold;")
-        if hasattr(self, '_del_label'):
+        if hasattr(self, '_del_label') and self._del_label is not None:
             self._del_label.setStyleSheet(f"color: {theme['red']}; font-size: 12px; font-weight: bold;")
-        if hasattr(self, '_content'):
+        if hasattr(self, '_content') and self._content is not None:
             self._content.setStyleSheet(f"""
                 QFrame {{
                     background-color: {theme['bg_primary']};
@@ -1789,6 +1852,7 @@ class DiffCard(QFrame):
         """
         super().__init__(parent)
         self.setObjectName("diffCard")
+        self._file_cards = []  # 显式跟踪子卡片，不用 findChildren
 
         total_add = sum(f["additions"] for f in files_diff)
         total_del = sum(f["deletions"] for f in files_diff)
@@ -1813,24 +1877,30 @@ class DiffCard(QFrame):
 
         # 每个文件一个卡片
         for file_info in files_diff:
-            if file_info["hunks"]:  # 只显示有变更的文件
+            if file_info["hunks"]:
                 card = DiffFileCard(file_info)
+                self._file_cards.append(card)
                 layout.addWidget(card)
 
         layout.addStretch()
 
     def update_theme(self):
         """更新 diff 卡片容器主题。"""
-        theme = theme_manager.get_current_theme()
+        try:
+            theme = theme_manager.get_current_theme()
+        except Exception:
+            return
         self.setStyleSheet(f"""
             #diffCard {{
                 background-color: transparent;
             }}
         """)
-        # 更新子卡片
-        for child in self.findChildren(DiffFileCard):
-            if hasattr(child, 'update_theme'):
-                child.update_theme()
+        # 更新子卡片 — 用显式列表，不依赖 findChildren
+        for card in self._file_cards:
+            try:
+                card.update_theme()
+            except Exception:
+                pass
 
 
 class LandingPage(QFrame):
@@ -2097,43 +2167,21 @@ class LeftPanel(QFrame):
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 12, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 14, 12, 12)
+        layout.setSpacing(10)
 
-        # 主题切换区域
-        theme_widget = QWidget()
-        theme_layout = QHBoxLayout(theme_widget)
-        theme_layout.setContentsMargins(0, 0, 0, 0)
-        theme_layout.setSpacing(8)
-        
-        theme_label = QLabel("主题")
-        theme_label.setStyleSheet(f"font-size: 13px; color: {theme_manager.get_color('text_secondary')};")
-        
-        self.theme_switch = ModernSwitch()
-        self.theme_switch.setChecked(False)  # 默认浅色主题
-        
-        # 主题切换事件
-        self.theme_switch.toggled.connect(self._on_theme_toggled)
-        
-        theme_layout.addWidget(theme_label)
-        theme_layout.addWidget(self.theme_switch)
-        theme_layout.addStretch()
-        
-        layout.addWidget(theme_widget)
-
-        self.new_btn = QPushButton("✚ 新建对话")
+        self.new_btn = QPushButton("＋ 新建对话")
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        gs = THEME.get('gradient_start', THEME['primary'])
+        ge = THEME.get('gradient_end', '#A78BFA')
         self.new_btn.setStyleSheet(f"""
             QPushButton {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {THEME['primary']}, stop:1 #8B5CF6);
-                color: white; border: none; border-radius: 8px;
-                padding: 10px; font-size: 14px; font-weight: bold;
+                    stop:0 {gs}, stop:1 {ge});
+                color: white; border: none; border-radius: 12px;
+                padding: 14px 16px; font-size: 15px; font-weight: 600;
             }}
-            QPushButton:hover {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {THEME['primary_hover']}, stop:1 #A78BFA);
-            }}
+            QPushButton:hover {{ opacity: 0.9; }}
             QPushButton:pressed {{ opacity: 0.85; }}
         """)
         layout.addWidget(self.new_btn)
@@ -2144,28 +2192,54 @@ class LeftPanel(QFrame):
         layout.addWidget(line)
 
         title = QLabel("历史对话")
-        title.setStyleSheet(f"font-weight: bold; font-size: 14px; padding: 4px 0; color: {THEME['text_primary']};")
+        title.setStyleSheet(f"font-weight: 600; font-size: 13px; padding: 8px 0 4px; color: {THEME['text_primary']};")
         layout.addWidget(title)
 
         self.conv_list = QListWidget()
         self.conv_list.setStyleSheet(f"""
             QListWidget {{
-                border: 1px solid {THEME['border']}; border-radius: 8px;
-                background-color: {THEME['bg_secondary']}; color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']}; border-radius: 10px;
+                background-color: {THEME['bg_primary']}; color: {THEME['text_secondary']};
             }}
             QListWidget::item {{
-                padding: 8px; border-bottom: 1px solid {THEME['border']};
+                padding: 12px 14px;
+                border-bottom: 1px solid {THEME['border']};
                 color: {THEME['text_secondary']};
+                font-size: 13px;
             }}
+            QListWidget::item:last-child {{ border-bottom: none; }}
             QListWidget::item:hover {{ background-color: {THEME['bg_card']}; }}
             QListWidget::item:selected {{
                 background-color: {THEME['primary']}; color: white;
-                border-radius: 4px;
+                border-radius: 8px;
+            }}
+            QListWidget::item:selected:hover {{
+                background-color: {THEME['primary_hover']};
             }}
         """)
         self.conv_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.conv_list.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self.conv_list)
+
+        # 主题切换区域（放最底部）
+        theme_widget = QWidget()
+        theme_layout = QHBoxLayout(theme_widget)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(8)
+
+        theme_label = QLabel("主题")
+        theme_label.setStyleSheet(f"font-size: 12px; color: {theme_manager.get_color('text_secondary')};")
+
+        self.theme_switch = ModernSwitch()
+        self.theme_switch.setChecked(False)
+
+        self.theme_switch.toggled.connect(self._on_theme_toggled)
+
+        theme_layout.addWidget(theme_label)
+        theme_layout.addWidget(self.theme_switch)
+        theme_layout.addStretch()
+
+        layout.addWidget(theme_widget)
     
     def _on_theme_toggled(self, is_dark):
         """主题切换处理"""
@@ -2188,8 +2262,8 @@ class LeftPanel(QFrame):
         except Exception:
             return
 
-        gradient_start = theme.get('gradient_start', theme['primary'])
-        gradient_end = theme.get('gradient_end', '#8B5CF6')
+        gs = theme.get('gradient_start', theme['primary'])
+        ge = theme.get('gradient_end', '#A78BFA')
 
         self.setStyleSheet(f"""
             LeftPanel {{
@@ -2202,56 +2276,49 @@ class LeftPanel(QFrame):
         if hasattr(self, 'new_btn') and self.new_btn is not None:
             self.new_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 {gradient_start}, stop:1 {gradient_end});
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {gs}, stop:1 {ge});
                     color: white;
                     border: none;
                     border-radius: 12px;
-                    padding: 12px 16px;
-                    font-size: 14px;
+                    padding: 14px 16px;
+                    font-size: 15px;
                     font-weight: 600;
                 }}
-                QPushButton:hover {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 {theme['primary_hover']}, stop:1 #A78BFA);
-                }}
-                QPushButton:pressed {{
-                    opacity: 0.9;
-                }}
+                QPushButton:hover {{ opacity: 0.9; }}
+                QPushButton:pressed {{ opacity: 0.85; }}
             """)
+
+        # 分割线
+        # 标题
+        for child in self.findChildren(QLabel):
+            if child.text() == "历史对话":
+                child.setStyleSheet(f"""
+                    font-weight: 600; font-size: 13px; padding: 8px 0 4px;
+                    color: {theme['text_primary']};
+                """)
 
         # 对话列表
         if hasattr(self, 'conv_list') and self.conv_list is not None:
             self.conv_list.setStyleSheet(f"""
                 QListWidget {{
-                    background-color: {theme['bg_secondary']};
-                    color: {theme['text_primary']};
-                    padding: 8px;
-                    outline: none;
+                    border: 1px solid {theme['border']}; border-radius: 10px;
+                    background-color: {theme['bg_primary']}; color: {theme['text_secondary']};
                 }}
                 QListWidget::item {{
-                    padding: 14px 16px;
-                    border: none;
+                    padding: 12px 14px;
+                    border-bottom: 1px solid {theme['border']};
                     color: {theme['text_secondary']};
-                    border-radius: 12px;
-                    margin: 4px 2px;
-                    background-color: transparent;
                     font-size: 13px;
                 }}
-                QListWidget::item:hover {{
-                    background-color: {theme['bg_card']};
-                    color: {theme['text_primary']};
-                }}
+                QListWidget::item:last-child {{ border-bottom: none; }}
+                QListWidget::item:hover {{ background-color: {theme['bg_card']}; }}
                 QListWidget::item:selected {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 {theme['primary']}, stop:1 {gradient_end});
-                    color: white;
-                    border-radius: 12px;
-                    font-weight: 500;
+                    background-color: {theme['primary']}; color: white;
+                    border-radius: 8px;
                 }}
-                QListWidget::item:focus {{
-                    outline: none;
-                    border: none;
+                QListWidget::item:selected:hover {{
+                    background-color: {theme['primary_hover']};
                 }}
             """)
 
@@ -2296,9 +2363,33 @@ class CenterPanel(QFrame):
         super().__init__(parent)
         self.setAutoFillBackground(True)
         self._diff_cards = []  # 跟踪所有 DiffCard，用于主题切换
+        self._thinking_acc_text = ""  # 累积当前轮次的思考文本
+        self._thinking_acc_ms = 0  # 累积思考用时
         self._message_rows = []  # 跟踪所有 MessageRow
         self._thinking_rows = []  # 跟踪所有 ThinkingRow
         self._build()
+
+    def _create_combo_view(self, theme):
+        """创建深色样式的 combobox 弹出视图。"""
+        from PyQt6.QtWidgets import QListView
+        from PyQt6.QtGui import QPalette, QColor
+
+        view = QListView()
+        palette = view.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(theme['bg_card']))
+        palette.setColor(QPalette.ColorRole.Base, QColor(theme['bg_card']))
+        palette.setColor(QPalette.ColorRole.Text, QColor(theme['text_primary']))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(theme['primary']))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor('white'))
+        view.setPalette(palette)
+        view.setStyleSheet(f"""
+            background-color: {theme['bg_card']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border']};
+            border-radius: 6px;
+            outline: none;
+        """)
+        return view
 
     def _build(self):
         layout = QVBoxLayout(self)
@@ -2318,15 +2409,36 @@ class CenterPanel(QFrame):
 
         combo_style = f"""
             QComboBox {{
-                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+                background-color: {THEME['bg_card']}; color: {THEME['text_primary']};
                 border: 1px solid {THEME['border']}; border-radius: 6px;
                 padding: 4px 12px; font-size: 12px; min-width: 120px;
             }}
-            QComboBox:hover {{ border-color: {THEME['border_focus']}; }}
+            QComboBox:hover {{ border-color: {THEME['primary']}; }}
             QComboBox::drop-down {{ border: none; }}
             QComboBox QAbstractItemView {{
                 background-color: {THEME['bg_card']}; color: {THEME['text_primary']};
-                selection-background-color: {THEME['primary']};
+                selection-background-color: {THEME['primary']}; selection-color: white;
+                border: 1px solid {THEME['border']}; border-radius: 6px;
+                outline: none;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 6px 12px;
+                border-radius: 4px;
+                margin: 2px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {THEME['border']};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {THEME['primary']};
+                color: white;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border: none;
+            }}
+            QComboBox::down-arrow::after {{
+                content: "";
             }}
         """
 
@@ -2339,11 +2451,14 @@ class CenterPanel(QFrame):
         self.model_combo.setCurrentIndex(1)
         self.model_combo.setMinimumWidth(150)
         self.model_combo.setStyleSheet(combo_style)
+        # macOS 修复：设置弹出窗口的调色板
+        self.model_combo.setView(self._create_combo_view(THEME))
         top_bar.addWidget(self.model_combo)
 
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["普通模式", "Agent 模式 (多步骤任务)"])
         self.mode_combo.setStyleSheet(combo_style)
+        self.mode_combo.setView(self._create_combo_view(THEME))
         top_bar.addWidget(self.mode_combo)
 
         perm_label = QLabel("权限:")
@@ -2355,6 +2470,7 @@ class CenterPanel(QFrame):
         self.permission_combo.setCurrentIndex(0)
         self.permission_combo.setMinimumWidth(170)
         self.permission_combo.setStyleSheet(combo_style)
+        self.permission_combo.setView(self._create_combo_view(THEME))
         top_bar.addWidget(self.permission_combo)
         top_bar.addStretch()
         layout.addLayout(top_bar)
@@ -2464,12 +2580,15 @@ class CenterPanel(QFrame):
             QTextEdit {{
                 border-radius: 10px;
                 padding: 8px 12px; font-size: 14px;
-                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};
+                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']};
             }}
             QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}
         """)
-        self.input_box.setMinimumHeight(40)
-        self.input_box.setMaximumHeight(120)
+        # 输入框自适应高度
+        self.input_box.document().documentLayout().documentSizeChanged.connect(
+            self._adjust_input_height
+        )
         input_layout.addWidget(self.input_box)
 
         self.send_btn = QPushButton("发  送")
@@ -2561,6 +2680,21 @@ class CenterPanel(QFrame):
                 QPushButton:pressed {{ opacity: 0.85; }}
             """)
 
+    def _adjust_input_height(self, size):
+        """输入框自适应高度（max 200）。"""
+        try:
+            viewport_w = self.input_box.viewport().width()
+            if viewport_w <= 0:
+                return
+            self.input_box.document().setTextWidth(viewport_w)
+            doc_h = int(self.input_box.document().size().height())
+            padding = 20
+            h = min(200, max(40, doc_h + padding))
+            self.input_box.setMinimumHeight(h)
+            self.input_box.setMaximumHeight(h)
+        except RuntimeError:
+            pass  # C++ object already deleted
+
     def _on_btn_click(self):
         if self._is_building_response:
             self.stop_clicked.emit()
@@ -2632,22 +2766,49 @@ class CenterPanel(QFrame):
         for i in range(self.msg_layout.count() - 2, -1, -1):
             item = self.msg_layout.itemAt(i)
             if item and item.widget() and isinstance(item.widget(), ThinkingRow):
-                return item.widget()
+                if item.widget()._block._in_progress:
+                    return item.widget()
             if item and item.widget() and isinstance(item.widget(), MessageRow):
                 break
         return None
 
     def add_thinking_block(self, text, duration_ms, in_progress=True):
-        """添加或更新当前轮次思考块。"""
+        """添加或更新当前轮次思考块。流式阶段累积文本，思考完成时才创建最终分段。"""
         row = self._find_latest_thinking_row()
-        if row is None:
-            row = ThinkingRow(text, duration_ms)
-            self._thinking_rows.append(row)
-            spring_index = self.msg_layout.count() - 1
-            self.msg_layout.insertWidget(spring_index, row)
-            self._animate_widget_in(row)
+
+        if in_progress:
+            # 流式阶段：只累积，不创建新分段
+            self._thinking_acc_text += (text or "")
+            self._thinking_acc_ms += max(0, int(duration_ms or 0))
+            # 创建或更新显示（实时更新 UI）
+            if row is None:
+                row = ThinkingRow("", 0)
+                self._thinking_rows.append(row)
+                spring_index = self.msg_layout.count() - 1
+                self.msg_layout.insertWidget(spring_index, row)
+                self._animate_widget_in(row)
+            # 替换为累积内容（始终只有 1 个分段）
+            row._block._entries = [{"text": self._thinking_acc_text.strip(), "duration_ms": self._thinking_acc_ms}]
+            row._block._total_duration_ms = self._thinking_acc_ms
+            row._block._refresh_content()
         else:
-            row.append_thinking(text, duration_ms)
+            # 思考完成：用累积文本创建最终分段
+            final_text = self._thinking_acc_text.strip()
+            final_ms = self._thinking_acc_ms
+            if row is None:
+                row = ThinkingRow(final_text, final_ms)
+                self._thinking_rows.append(row)
+                spring_index = self.msg_layout.count() - 1
+                self.msg_layout.insertWidget(spring_index, row)
+                self._animate_widget_in(row)
+            else:
+                row._block._entries = [{"text": final_text, "duration_ms": final_ms}]
+                row._block._total_duration_ms = final_ms
+                row._block._refresh_content()
+            # 重置累积
+            self._thinking_acc_text = ""
+            self._thinking_acc_ms = 0
+
         row.set_in_progress(in_progress)
         self._scroll_to_bottom()
         return row
@@ -2673,7 +2834,7 @@ class CenterPanel(QFrame):
                 widget = item.widget()
                 # 检查是否是 assistant 的占位消息
                 if widget.role == "assistant":
-                    text = widget._content_label.text()
+                    text = widget._content_label.toPlainText()
                     if "思考中" in text:
                         self.msg_layout.removeWidget(widget)
                         widget.deleteLater()
@@ -2742,45 +2903,44 @@ class CenterPanel(QFrame):
         # 下拉框样式
         combo_style = f"""
             QComboBox {{
-                background-color: {theme['bg_input']};
+                background-color: {theme['bg_card']};
                 color: {theme['text_primary']};
                 border: 1px solid {theme['border']};
-                border-radius: 8px;
-                padding: 6px 12px;
+                border-radius: 6px;
+                padding: 4px 12px;
                 font-size: 12px;
                 min-width: 120px;
-                font-weight: 500;
             }}
             QComboBox:hover {{
-                border-color: {theme['border_focus']};
-                background-color: {theme['bg_card']};
+                border-color: {theme['primary']};
             }}
             QComboBox:focus {{
-                border: 2px solid {theme['border_focus']};
+                border-color: {theme['border_focus']};
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 20px;
             }}
             QComboBox::down-arrow {{
                 image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 4px solid {theme['text_secondary']};
-                margin-right: 4px;
+                border: none;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {theme['bg_card']};
                 color: {theme['text_primary']};
                 selection-background-color: {theme['primary']};
+                selection-color: white;
                 border: 1px solid {theme['border']};
-                border-radius: 8px;
-                padding: 4px;
+                border-radius: 6px;
+                outline: none;
+                padding: 2px;
             }}
             QComboBox QAbstractItemView::item {{
-                padding: 8px 12px;
+                padding: 6px 12px;
                 border-radius: 4px;
                 margin: 2px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {theme['border']};
             }}
             QComboBox QAbstractItemView::item:selected {{
                 background-color: {theme['primary']};
@@ -2790,10 +2950,13 @@ class CenterPanel(QFrame):
 
         if hasattr(self, 'model_combo') and self.model_combo is not None:
             self.model_combo.setStyleSheet(combo_style)
+            self.model_combo.setView(self._create_combo_view(theme))
         if hasattr(self, 'mode_combo') and self.mode_combo is not None:
             self.mode_combo.setStyleSheet(combo_style)
+            self.mode_combo.setView(self._create_combo_view(theme))
         if hasattr(self, 'permission_combo') and self.permission_combo is not None:
             self.permission_combo.setStyleSheet(combo_style)
+            self.permission_combo.setView(self._create_combo_view(theme))
 
         # 快捷按钮
         is_dark = theme['bg_primary'] in ('#0D1117', '#212121', '#1A1A1A', '#1E1E1E')
@@ -2899,11 +3062,12 @@ class CenterPanel(QFrame):
         if hasattr(self, 'input_box') and self.input_box is not None:
             self.input_box.setStyleSheet(f"""
                 QTextEdit {{
-                    border-radius: 12px;
-                    padding: 12px 16px;
+                    border-radius: 10px;
+                    padding: 8px 12px;
                     font-size: 14px;
-                    background-color: {theme['bg_primary']};
+                    background-color: {theme['bg_input']};
                     color: {theme['text_primary']};
+                    border: 1px solid {theme['border']};
                     selection-background-color: {theme['primary']};
                 }}
                 QTextEdit::placeholder {{
@@ -3207,32 +3371,65 @@ class RightPanel(QFrame):
         layout.setSpacing(8)
 
         # === 任务进度区 ===
-        task_title = QLabel("任务进度")
-        task_title.setStyleSheet(
-            f"font-weight: bold; font-size: 14px; padding: 2px 0; color: {THEME['text_primary']};"
+        self.task_title = QLabel("任务进度")
+        self.task_title.setStyleSheet(
+            f"font-weight: 600; font-size: 13px; padding: 4px 0 6px; color: {THEME['text_primary']};"
         )
-        layout.addWidget(task_title)
+        layout.addWidget(self.task_title)
+
+        # 任务卡片容器
+        task_card = QFrame()
+        task_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_card']};
+                border: 1px solid {THEME['border']};
+                border-radius: 8px;
+            }}
+        """)
+        task_card_layout = QVBoxLayout(task_card)
+        task_card_layout.setContentsMargins(6, 6, 6, 6)
+        task_card_layout.setSpacing(0)
 
         self.task_scroll = QScrollArea()
         self.task_scroll.setWidgetResizable(True)
         self.task_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        # viewport() 必须显式设置背景色，否则默认白色
         self.task_scroll.viewport().setAutoFillBackground(True)
-        self.task_scroll.viewport().setStyleSheet(f"background-color: {THEME['bg_secondary']};")
+        self.task_scroll.viewport().setStyleSheet(f"background-color: {THEME['bg_card']};")
         self.task_scroll.setStyleSheet(f"""
             QScrollArea {{
-                background-color: {THEME['bg_secondary']};
+                background-color: {THEME['bg_card']};
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 4px;
+                border-radius: 2px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {THEME.get('scrollbar_handle', THEME['purple'])};
+                border-radius: 2px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {THEME.get('scrollbar_handle_hover', THEME['primary_hover'])};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none;
             }}
         """)
         self.task_container = QWidget()
-        self.task_container.setStyleSheet(f"background-color: {THEME['bg_secondary']};")
+        self.task_container.setStyleSheet(f"background-color: {THEME['bg_card']};")
         self.task_layout = QVBoxLayout(self.task_container)
         self.task_layout.setContentsMargins(4, 4, 4, 4)
-        self.task_layout.setSpacing(4)
+        self.task_layout.setSpacing(6)
 
-        # 无任务时提示（添加到 task_layout 中）
+        # 无任务时提示
         self._no_task_label = QLabel("等待 AI 执行任务...")
         self._no_task_label.setStyleSheet(
             f"color: {THEME['text_tertiary']}; font-size: 12px; "
@@ -3243,7 +3440,9 @@ class RightPanel(QFrame):
 
         self.task_layout.addStretch()
         self.task_scroll.setWidget(self.task_container)
-        layout.addWidget(self.task_scroll)
+        task_card_layout.addWidget(self.task_scroll)
+        layout.addWidget(task_card)
+        self.task_card = task_card  # 保存引用以便主题切换
 
         # === 分隔线 ===
         line = QFrame()
@@ -3252,24 +3451,55 @@ class RightPanel(QFrame):
         layout.addWidget(line)
 
         # === 项目文件区 ===
-        file_title = QLabel("项目文件")
-        file_title.setStyleSheet(
-            f"font-weight: bold; font-size: 14px; padding: 2px 0; color: {THEME['text_primary']};"
+        self.file_title = QLabel("项目文件")
+        self.file_title.setStyleSheet(
+            f"font-weight: 600; font-size: 13px; padding: 4px 0 6px; color: {THEME['text_primary']};"
         )
-        layout.addWidget(file_title)
+        layout.addWidget(self.file_title)
+
+        # 文件卡片容器
+        file_card = QFrame()
+        file_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME['bg_card']};
+                border: 1px solid {THEME['border']};
+                border-radius: 8px;
+            }}
+        """)
+        file_card_layout = QVBoxLayout(file_card)
+        file_card_layout.setContentsMargins(6, 6, 6, 6)
+        file_card_layout.setSpacing(0)
 
         self.file_list = QListWidget()
         self.file_list.setAutoFillBackground(True)
         self.file_list.setStyleSheet(f"""
             QListWidget {{
-                background-color: {THEME['bg_secondary']}; color: {THEME['text_secondary']};
+                background-color: {THEME['bg_card']}; color: {THEME['text_secondary']};
                 border: none;
+                outline: none;
             }}
-            QListWidget::item {{ padding: 4px 8px; color: {THEME['text_secondary']}; }}
-            QListWidget::item:selected {{ background-color: {THEME['primary']}; color: white; }}
+            QListWidget::item {{
+                padding: 6px 8px;
+                color: {THEME['text_secondary']};
+                border-radius: 4px;
+                margin: 1px;
+                font-size: 12px;
+            }}
+            QListWidget::item:hover {{
+                background-color: {THEME['border']};
+                color: {THEME['text_primary']};
+            }}
+            QListWidget::item:selected {{
+                background-color: {THEME['primary']};
+                color: white;
+                border-radius: 4px;
+                font-weight: 500;
+            }}
         """)
         self.file_list.setMaximumHeight(200)
-        layout.addWidget(self.file_list)
+        file_card_layout.addWidget(self.file_list)
+        layout.addWidget(file_card)
+        self.file_card = file_card  # 保存引用以便主题切换
 
     def update_task(self, tool_info):
         """更新任务步骤。
@@ -3335,37 +3565,73 @@ class RightPanel(QFrame):
             }}
         """)
 
+        # 标题
+        if hasattr(self, 'task_title') and self.task_title is not None:
+            self.task_title.setStyleSheet(f"""
+                font-weight: 600; font-size: 13px; padding: 4px 0 6px;
+                color: {theme['text_primary']};
+            """)
+
+        if hasattr(self, 'file_title') and self.file_title is not None:
+            self.file_title.setStyleSheet(f"""
+                font-weight: 600; font-size: 13px; padding: 4px 0 6px;
+                color: {theme['text_primary']};
+            """)
+
+        # 分隔线
+        for child in self.findChildren(QFrame):
+            if child.frameShape() == QFrame.Shape.HLine:
+                child.setStyleSheet(f"background-color: {theme['border']};")
+
+        # 任务卡片
+        if hasattr(self, 'task_card') and self.task_card is not None:
+            self.task_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_card']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 8px;
+                }}
+            """)
+
         # 任务滚动区域
         if hasattr(self, 'task_scroll') and self.task_scroll is not None:
             self.task_scroll.setStyleSheet(f"""
                 QScrollArea {{
-                    background-color: {theme['bg_secondary']};
+                    background-color: {theme['bg_card']};
+                    border: none;
                 }}
                 QScrollBar:vertical {{
-                    background: {theme['bg_input']};
-                    width: 8px;
-                    border-radius: 4px;
+                    background: transparent;
+                    width: 4px;
+                    border-radius: 2px;
+                    margin: 0px;
                 }}
                 QScrollBar::handle:vertical {{
-                    background: {theme['border']};
-                    border-radius: 4px;
-                    min-height: 20px;
+                    background: {theme.get('scrollbar_handle', theme['purple'])};
+                    border-radius: 2px;
+                    min-height: 30px;
                 }}
                 QScrollBar::handle:vertical:hover {{
-                    background: {theme['border_focus']};
+                    background: {theme.get('scrollbar_handle_hover', theme['primary_hover'])};
+                }}
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                    height: 0px;
+                }}
+                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                    background: none;
                 }}
             """)
             try:
                 vp = self.task_scroll.viewport()
                 if vp is not None:
                     vp.setAutoFillBackground(True)
-                    vp.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+                    vp.setStyleSheet(f"background-color: {theme['bg_card']};")
             except Exception:
                 pass
 
         # 任务容器
         if hasattr(self, 'task_container') and self.task_container is not None:
-            self.task_container.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+            self.task_container.setStyleSheet(f"background-color: {theme['bg_card']};")
 
         # 无任务提示
         if hasattr(self, '_no_task_label') and self._no_task_label is not None:
@@ -3377,31 +3643,41 @@ class RightPanel(QFrame):
                 text-align: center;
             """)
 
+        # 文件卡片
+        if hasattr(self, 'file_card') and self.file_card is not None:
+            self.file_card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {theme['bg_card']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 8px;
+                }}
+            """)
+
         # 文件列表
         if hasattr(self, 'file_list') and self.file_list is not None:
             self.file_list.setStyleSheet(f"""
                 QListWidget {{
-                    background-color: {theme['bg_secondary']};
+                    background-color: {theme['bg_card']};
                     color: {theme['text_secondary']};
-                    padding: 4px;
+                    padding: 2px;
                     outline: none;
                     border: none;
                 }}
                 QListWidget::item {{
-                    padding: 8px 12px;
+                    padding: 6px 8px;
                     color: {theme['text_secondary']};
-                    border-radius: 6px;
-                    margin: 2px;
+                    border-radius: 4px;
+                    margin: 1px;
                     font-size: 12px;
                 }}
                 QListWidget::item:hover {{
-                    background-color: {theme['bg_card']};
+                    background-color: {theme['border']};
                     color: {theme['text_primary']};
                 }}
                 QListWidget::item:selected {{
                     background-color: {theme['primary']};
                     color: white;
-                    border-radius: 6px;
+                    border-radius: 4px;
                     font-weight: 500;
                 }}
             """)
@@ -3409,7 +3685,7 @@ class RightPanel(QFrame):
                 vp = self.file_list.viewport()
                 if vp is not None:
                     vp.setAutoFillBackground(True)
-                    vp.setStyleSheet(f"background-color: {theme['bg_secondary']};")
+                    vp.setStyleSheet(f"background-color: {theme['bg_card']};")
             except Exception:
                 pass
 
@@ -3472,6 +3748,57 @@ class MainWindow(QMainWindow):
             self.setStyleSheet(f"""
                 QMainWindow {{ background-color: {theme['bg_primary']}; }}
             """)
+
+            # 全局下拉框弹出窗口样式
+            QApplication.instance().setStyleSheet(f"""
+                QComboBox QAbstractItemView {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 6px;
+                    outline: none;
+                    padding: 2px;
+                }}
+                QComboBox QAbstractItemView::item {{
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    margin: 2px;
+                    color: {theme['text_primary']};
+                }}
+                QComboBox QAbstractItemView::item:hover {{
+                    background-color: {theme['border']};
+                }}
+                QComboBox QAbstractItemView::item:selected {{
+                    background-color: {theme['primary']};
+                    color: white;
+                }}
+                QFrame {{
+                    background-color: {theme['bg_primary']};
+                }}
+                QMenu {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 6px;
+                    padding: 4px;
+                }}
+                QMenu::item {{
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    margin: 2px;
+                }}
+                QMenu::item:selected {{
+                    background-color: {theme['primary']};
+                    color: white;
+                }}
+                QToolTip {{
+                    background-color: {theme['bg_card']};
+                    color: {theme['text_primary']};
+                    border: 1px solid {theme['border']};
+                    border-radius: 4px;
+                    padding: 4px;
+                }}
+            """)
         except Exception as e:
             print(f"主题应用错误: {e}")
             return
@@ -3513,10 +3840,11 @@ class MainWindow(QMainWindow):
         # self.change_timer.timeout.connect(self._schedule_git_status)
         # self.change_timer.start(8000)
 
-        # session 超时检查定时器（每 60 秒检查一次）
-        self._session_check_timer = QTimer()
-        self._session_check_timer.timeout.connect(self._check_session_timeout)
-        self._session_check_timer.start(60000)
+        # session 超时检查定时器（每 60 秒检查一次，只在首次创建）
+        if not hasattr(self, '_session_check_timer') or self._session_check_timer is None:
+            self._session_check_timer = QTimer()
+            self._session_check_timer.timeout.connect(self._check_session_timeout)
+            self._session_check_timer.start(60000)
 
     def _build(self):
         central = QWidget()
@@ -3732,6 +4060,8 @@ class MainWindow(QMainWindow):
         self._last_thinking_segments = []
         self._last_diff_data = None  # 清空上一轮的 diff 数据
         self._has_stream_text = False
+        self.center_panel._thinking_acc_text = ""  # 重置思考累积器
+        self.center_panel._thinking_acc_ms = 0
 
         # 获取当前对话的 session_id（用于续接历史对话）
         session_id = conv.get("session_id") if conv else None
@@ -4281,7 +4611,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "请等待当前对话完成")
             return
 
-        # 如果已有未发送的「新增对话」，直接跳转不新建
+        # 检查内存中的 pending
         if self._pending_new_conv_id:
             pending = load_conversation(self._pending_new_conv_id)
             if pending and pending.get("title") == "新增对话":
@@ -4291,6 +4621,22 @@ class MainWindow(QMainWindow):
                 if not silent:
                     self._refresh_sidebar_preview()
                 return
+
+        # 重启后 _pending_new_conv_id 丢失，扫描已存在的空「新增对话」
+        all_conv = list_conversations()
+        for conv in all_conv:
+            if conv.get("title") == "新增对话":
+                conv_id_check = conv.get("id")
+                data = load_conversation(conv_id_check)
+                if data and not data.get("messages"):
+                    # 找到空的「新增对话」，直接跳转
+                    self.current_conv_id = conv_id_check
+                    self._pending_new_conv_id = conv_id_check
+                    self.center_panel.hide_landing()
+                    self.center_panel.clear_messages()
+                    if not silent:
+                        self._refresh_sidebar_preview()
+                    return
 
         conv_id = str(uuid.uuid4())[:8]
         title = "新增对话"
@@ -4358,6 +4704,13 @@ class MainWindow(QMainWindow):
 
 def main():
     try:
+        # 输出 SDK 版本
+        try:
+            from claude_agent_sdk._version import __version__ as sdk_version
+            print(f"[CC-view] claude-agent-sdk v{sdk_version}")
+        except ImportError:
+            print("[CC-view] claude-agent-sdk (版本未知)")
+
         # 检查 claude CLI 是否已安装
         if subprocess.call(["claude", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
             print("错误: 未找到 claude 命令。")
@@ -4366,13 +4719,14 @@ def main():
 
         app = QApplication([])
         app.setApplicationName("Claude Code 桌面助手")
-        
+        app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar)
+
         # 设置窗口图标
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "ico.png")
         if os.path.exists(icon_path):
             app.setWindowIcon(QIcon(icon_path))
         
-        # 全局深色滚动条样式
+        # 全局样式
         scrollbar_w = 8
         scrollbar_c = theme_manager.get_color('border_focus')
         scrollbar_bg = THEME.get('bg_primary', '#0F0F14')
@@ -4408,6 +4762,50 @@ def main():
             QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal,
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
                 background: none; border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {THEME['bg_card']};
+                color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']};
+                border-radius: 6px;
+                outline: none;
+                padding: 2px;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 6px 12px;
+                border-radius: 4px;
+                margin: 2px;
+                color: {THEME['text_primary']};
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {THEME['border']};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {THEME['primary']};
+                color: white;
+            }}
+            QMenu {{
+                background-color: {THEME['bg_card']};
+                color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                padding: 6px 12px;
+                border-radius: 4px;
+                margin: 2px;
+            }}
+            QMenu::item:selected {{
+                background-color: {THEME['primary']};
+                color: white;
+            }}
+            QToolTip {{
+                background-color: {THEME['bg_card']};
+                color: {THEME['text_primary']};
+                border: 1px solid {THEME['border']};
+                border-radius: 4px;
+                padding: 4px;
             }}
         """)
         

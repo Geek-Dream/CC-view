@@ -1,0 +1,5061 @@
+{
+  "id": "fada29ce",
+  "title": "打招呼",
+  "created_at": "2026-04-28T18:09:31.789675",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好呀？"
+    },
+    {
+      "role": "assistant",
+      "content": "你好！有什么我可以帮助你的吗？😊",
+      "thinking": "[第1段 | 用时 0毫秒]\n用户用\n\n[第2段 | 用时 0毫秒]\n中文打招呼，我应该用中文回复。这是一个简单的问候，不需要使用任何工具。",
+      "thinking_duration_ms": 0,
+      "thinking_segments": [
+        {
+          "text": "用户用",
+          "duration_ms": 0
+        },
+        {
+          "text": "中文打招呼，我应该用中文回复。这是一个简单的问候，不需要使用任何工具。",
+          "duration_ms": 0
+        }
+      ],
+      "diff_data": [
+        {
+          "file": "claude_agent_sdk/_internal/message_parser.py",
+          "additions": 1,
+          "deletions": 1,
+          "hunks": [
+            {
+              "old_start": 109,
+              "old_count": 7,
+              "new_start": 109,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                        case \"thinking\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            content_blocks.append("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                ThinkingBlock("
+                },
+                {
+                  "type": "removed",
+                  "text": "                                    thinking=block[\"thinking\"],"
+                },
+                {
+                  "type": "added",
+                  "text": "                                    thinking=block.get(\"thinking\", \"\"),"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                    signature=block[\"signature\"],"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            )"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/f14a0ff2.json",
+          "additions": 0,
+          "deletions": 6,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 6,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"f14a0ff2\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"新增对话\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-27T17:30:08.469097\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": []"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "main.py",
+          "additions": 152,
+          "deletions": 25,
+          "hunks": [
+            {
+              "old_start": 102,
+              "old_count": 7,
+              "new_start": 102,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble\": \"#EEF2FF\",   # 淡紫用户气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble_gradient_end\": \"#C7D2FE\",  # 用户气泡渐变结束色（浅紫）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_text\": \"#4338CA\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"ai_bubble\": \"#F9FAFB\",     # 极浅灰 AI 气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_bubble\": \"#F3F4F6\",     # 浅灰 AI 气泡（与主背景区分）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"ai_text\": \"#111827\","
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_bubble\": \"#FEF3C7\", # 系统气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_text\": \"#92400E\","
+                }
+              ]
+            },
+            {
+              "old_start": 163,
+              "old_count": 6,
+              "new_start": 163,
+              "new_count": 11,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "# 临时兼容性：为现有代码提供THEME变量"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "THEME = theme_manager.get_current_theme()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 气泡最大宽度（用户靠右/靠左名称对齐参考）"
+                },
+                {
+                  "type": "added",
+                  "text": "# 用户和 AI 气泡最大宽度（相同，参考标签名对齐）"
+                },
+                {
+                  "type": "added",
+                  "text": "USER_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": "AI_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# ==================== 高级动画系统 ===================="
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "class AnimationManager(QObject):"
+                }
+              ]
+            },
+            {
+              "old_start": 896,
+              "old_count": 7,
+              "new_start": 901,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            permission_mode=self.permission_mode,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            can_use_tool=self._can_use_tool,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            include_partial_messages=True,"
+                },
+                {
+                  "type": "removed",
+                  "text": "            thinking={\"type\": \"adaptive\", \"display\": \"summarized\"},  # 确保返回思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "            thinking={\"type\": \"enabled\", \"budget_tokens\": 4096, \"display\": \"summarized\"},  # 明确启用 thinking"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self.session_id:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            options.resume = self.session_id"
+                }
+              ]
+            },
+            {
+              "old_start": 973,
+              "old_count": 6,
+              "new_start": 978,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                delta_type = delta.get(\"type\", \"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if delta_type == \"text_delta\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(delta.get(\"text\", \"\"))"
+                },
+                {
+                  "type": "added",
+                  "text": "                elif delta_type == \"thinking_delta\":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = delta.get(\"thinking\", \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    print(f\"[SDK DEBUG] thinking_delta: {repr(thinking_text[:100])}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            elif event_type == \"content_block_stop\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                pass  # 思考/工具的完成信息在 AssistantMessage 中处理"
+                }
+              ]
+            },
+            {
+              "old_start": 982,
+              "old_count": 7,
+              "new_start": 991,
+              "new_count": 9,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                if isinstance(block, TextBlock):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(block.text)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                elif isinstance(block, ThinkingBlock):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    self.thinking_ready.emit(block.thinking, 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_started.emit()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = getattr(block, 'thinking', '') or ''"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        elif isinstance(msg, ResultMessage):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if msg.is_error:"
+                }
+              ]
+            },
+            {
+              "old_start": 1164,
+              "old_count": 8,
+              "new_start": 1175,
+              "new_count": 6,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble = QFrame()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble.setObjectName(\"bubble\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 不设置固定宽度，让内容自然撑开"
+                },
+                {
+                  "type": "removed",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout = QVBoxLayout(bubble)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.setContentsMargins(0, 0, 0, 0)"
+                }
+              ]
+            },
+            {
+              "old_start": 1183,
+              "old_count": 16,
+              "new_start": 1192,
+              "new_count": 20,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setWordWrapMode(QTextOption.WrapMode.WordWrap)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMinimumWidth(180)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMaximumWidth(550)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 去掉 QTextEdit 默认的内边距"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.document().setDocumentMargin(0)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 初始用纯文本显示（流式输出期间不渲染 Markdown）"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        _max_w = USER_BUBBLE_MAX_WIDTH if role==\"user\" else AI_BUBBLE_MAX_WIDTH"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setMaximumWidth(_max_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setStyleSheet(\"font-size: 13px; padding: 4px 10px 8px 10px; background-color: transparent;\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setTextInteractionFlags("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "added",
+                  "text": "        # Auto-height: set textWidth and initial text, then connect"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().setTextWidth(_max_w - 30)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().contentsChanged.connect(lambda: self._sync_content_height())"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.addWidget(content)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 样式 — 根据当前主题动态配色"
+                }
+              ]
+            },
+            {
+              "old_start": 1221,
+              "old_count": 6,
+              "new_start": 1234,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {THEME['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1251,
+              "old_count": 6,
+              "new_start": 1265,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        dots = \".\" * self._thinking_dots"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(f\"🤔 思考中{dots}\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _sync_content_height(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"同步内容高度：根据当前内容和宽度计算并设置精确高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl = self._content_label"
+                },
+                {
+                  "type": "added",
+                  "text": "            if cl is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            vw = cl.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if vw >= 80:"
+                },
+                {
+                  "type": "added",
+                  "text": "                cl.document().setTextWidth(vw)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 无论视口是否就绪，都要根据当前 textWidth 计算高度"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(cl.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = max(36, doc_h + 16)"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl.setFixedHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except (RuntimeError, AttributeError):"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def resizeEvent(self, event):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"窗口尺寸变化时重新同步高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        super().resizeEvent(event)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _start_processing_animation(self, base_text):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\"启动处理中动画（转圈）。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._processing_base_text = base_text"
+                }
+              ]
+            },
+            {
+              "old_start": 1290,
+              "old_count": 6,
+              "new_start": 1325,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_type_timer'):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._type_timer.stop()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                del self._type_timer"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 动画期间用纯文本"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(self._target_text[:self._displayed_chars])"
+                }
+              ]
+            },
+            {
+              "old_start": 1334,
+              "old_count": 6,
+              "new_start": 1373,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            else:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 新的更长文本，继续动画"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._target_text = text"
+                }
+              ]
+            },
+            {
+              "old_start": 1375,
+              "old_count": 6,
+              "new_start": 1418,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            self._bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {theme['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {theme['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1391,
+              "old_count": 6,
+              "new_start": 1435,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                html = MarkdownRenderer.to_html(self._raw_text, theme)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if html and hasattr(self, '_content_label') and self._content_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_prefix_label') and self._prefix_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._prefix_label.setStyleSheet("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    f\"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; \""
+                }
+              ]
+            },
+            {
+              "old_start": 2315,
+              "old_count": 10,
+              "new_start": 2363,
+              "new_count": 34,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        super().__init__(parent)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.setAutoFillBackground(True)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._diff_cards = []  # 跟踪所有 DiffCard，用于主题切换"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_text = \"\"  # 累积当前轮次的思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_ms = 0  # 累积思考用时"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._message_rows = []  # 跟踪所有 MessageRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._thinking_rows = []  # 跟踪所有 ThinkingRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._build()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _create_combo_view(self, theme):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"创建深色样式的 combobox 弹出视图。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtWidgets import QListView"
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtGui import QPalette, QColor"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        view = QListView()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette = view.palette()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Window, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Base, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Text, QColor(theme['text_primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Highlight, QColor(theme['primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.HighlightedText, QColor('white'))"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setPalette(palette)"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            background-color: {theme['bg_card']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border-radius: 6px;"
+                },
+                {
+                  "type": "added",
+                  "text": "            outline: none;"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        return view"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _build(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout = QVBoxLayout(self)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.setContentsMargins(8, 8, 8, 8)"
+                }
+              ]
+            },
+            {
+              "old_start": 2379,
+              "old_count": 11,
+              "new_start": 2451,
+              "new_count": 14,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setCurrentIndex(1)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setMinimumWidth(150)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # macOS 修复：设置弹出窗口的调色板"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.model_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.model_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo = QComboBox()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.addItems([\"普通模式\", \"Agent 模式 (多步骤任务)\"])"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.mode_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.mode_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        perm_label = QLabel(\"权限:\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2395,
+              "old_count": 6,
+              "new_start": 2470,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setCurrentIndex(0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setMinimumWidth(170)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.permission_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.permission_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addStretch()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.addLayout(top_bar)"
+                }
+              ]
+            },
+            {
+              "old_start": 2504,
+              "old_count": 12,
+              "new_start": 2580,
+              "new_count": 15,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                border-radius: 10px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                padding: 8px 12px; font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMinimumHeight(40)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMaximumHeight(120)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # 输入框自适应高度"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.input_box.document().documentLayout().documentSizeChanged.connect("
+                },
+                {
+                  "type": "added",
+                  "text": "            self._adjust_input_height"
+                },
+                {
+                  "type": "added",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        input_layout.addWidget(self.input_box)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.send_btn = QPushButton(\"发  送\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2601,
+              "old_count": 6,
+              "new_start": 2680,
+              "new_count": 21,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                QPushButton:pressed {{ opacity: 0.85; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _adjust_input_height(self, size):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"输入框自适应高度（max 200）。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            viewport_w = self.input_box.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if viewport_w <= 0:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.document().setTextWidth(viewport_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(self.input_box.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            padding = 20"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = min(200, max(40, doc_h + padding))"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMinimumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMaximumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass  # C++ object already deleted"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _on_btn_click(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self._is_building_response:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.stop_clicked.emit()"
+                }
+              ]
+            },
+            {
+              "old_start": 2672,
+              "old_count": 22,
+              "new_start": 2766,
+              "new_count": 49,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        for i in range(self.msg_layout.count() - 2, -1, -1):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            item = self.msg_layout.itemAt(i)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), ThinkingRow):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                return item.widget()"
+                },
+                {
+                  "type": "added",
+                  "text": "                if item.widget()._block._in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    return item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), MessageRow):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                break"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return None"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def add_thinking_block(self, text, duration_ms, in_progress=True):"
+                },
+                {
+                  "type": "removed",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。流式阶段累积文本，思考完成时才创建最终分段。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row = self._find_latest_thinking_row()"
+                },
+                {
+                  "type": "removed",
+                  "text": "        if row is None:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row = ThinkingRow(text, duration_ms)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        if in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 流式阶段：只累积，不创建新分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text += (text or \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms += max(0, int(duration_ms or 0))"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 创建或更新显示（实时更新 UI）"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(\"\", 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 替换为累积内容（始终只有 1 个分段）"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._entries = [{\"text\": self._thinking_acc_text.strip(), \"duration_ms\": self._thinking_acc_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._total_duration_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._refresh_content()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        else:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row.append_thinking(text, duration_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 思考完成：用累积文本创建最终分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_text = self._thinking_acc_text.strip()"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(final_text, final_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            else:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._entries = [{\"text\": final_text, \"duration_ms\": final_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._total_duration_ms = final_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._refresh_content()"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 重置累积"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text = \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row.set_in_progress(in_progress)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._scroll_to_bottom()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return row"
+                }
+              ]
+            },
+            {
+              "old_start": 2713,
+              "old_count": 7,
+              "new_start": 2834,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                widget = item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                # 检查是否是 assistant 的占位消息"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if widget.role == \"assistant\":"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    text = widget._content_label.text()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    text = widget._content_label.toPlainText()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    if \"思考中\" in text:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        self.msg_layout.removeWidget(widget)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        widget.deleteLater()"
+                }
+              ]
+            },
+            {
+              "old_start": 2829,
+              "old_count": 10,
+              "new_start": 2950,
+              "new_count": 13,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'model_combo') and self.model_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.model_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'mode_combo') and self.mode_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.mode_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'permission_combo') and self.permission_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.permission_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 快捷按钮"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        is_dark = theme['bg_primary'] in ('#0D1117', '#212121', '#1A1A1A', '#1E1E1E')"
+                }
+              ]
+            },
+            {
+              "old_start": 2938,
+              "old_count": 11,
+              "new_start": 3062,
+              "new_count": 12,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'input_box') and self.input_box is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.input_box.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit {{"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    border-radius: 12px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    padding: 12px 16px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border-radius: 10px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    padding: 8px 12px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    background-color: {theme['bg_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    background-color: {theme['bg_input']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    selection-background-color: {theme['primary']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit::placeholder {{"
+                }
+              ]
+            },
+            {
+              "old_start": 3935,
+              "old_count": 6,
+              "new_start": 4060,
+              "new_count": 8,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_thinking_segments = []"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_diff_data = None  # 清空上一轮的 diff 数据"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._has_stream_text = False"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_text = \"\"  # 重置思考累积器"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 获取当前对话的 session_id（用于续接历史对话）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        session_id = conv.get(\"session_id\") if conv else None"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "你会做什么？"
+    },
+    {
+      "role": "assistant",
+      "content": "我是一个 AI 助手，可以帮你做很多事情：\n\n**代码方面**\n- 读写、编辑和搜索代码文件\n- 调试和修复 bug\n- 重构和优化代码\n- 运行测试和构建项目\n\n**研究探索**\n- 搜索和分析代码库\n- 理解复杂的代码结构\n- 回答关于代码的问题\n\n**文件操作**\n- 创建和修改文件\n- 处理各种格式的文件\n- 执行命令行操作\n\n**网页相关**\n- 抓取网页内容\n- 自动化浏览器操作\n- 搜索网络信息\n\n**其他**\n- 回答问题\n- 帮你规划任务\n- 进行代码审查\n- 调度定时任务\n\n你现在有什么具体需要帮忙的吗？",
+      "thinking": "[第1段 | 用时 0毫秒]\nThe\n\n[第2段 | 用时 0毫秒]\n user is asking what I can do. I should give a brief, friendly overview of my capabilities.",
+      "thinking_duration_ms": 0,
+      "thinking_segments": [
+        {
+          "text": "The",
+          "duration_ms": 0
+        },
+        {
+          "text": " user is asking what I can do. I should give a brief, friendly overview of my capabilities.",
+          "duration_ms": 0
+        }
+      ],
+      "diff_data": [
+        {
+          "file": "claude_agent_sdk/_internal/message_parser.py",
+          "additions": 1,
+          "deletions": 1,
+          "hunks": [
+            {
+              "old_start": 109,
+              "old_count": 7,
+              "new_start": 109,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                        case \"thinking\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            content_blocks.append("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                ThinkingBlock("
+                },
+                {
+                  "type": "removed",
+                  "text": "                                    thinking=block[\"thinking\"],"
+                },
+                {
+                  "type": "added",
+                  "text": "                                    thinking=block.get(\"thinking\", \"\"),"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                    signature=block[\"signature\"],"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            )"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/f14a0ff2.json",
+          "additions": 0,
+          "deletions": 6,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 6,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"f14a0ff2\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"新增对话\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-27T17:30:08.469097\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": []"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "main.py",
+          "additions": 152,
+          "deletions": 25,
+          "hunks": [
+            {
+              "old_start": 102,
+              "old_count": 7,
+              "new_start": 102,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble\": \"#EEF2FF\",   # 淡紫用户气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble_gradient_end\": \"#C7D2FE\",  # 用户气泡渐变结束色（浅紫）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_text\": \"#4338CA\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"ai_bubble\": \"#F9FAFB\",     # 极浅灰 AI 气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_bubble\": \"#F3F4F6\",     # 浅灰 AI 气泡（与主背景区分）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"ai_text\": \"#111827\","
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_bubble\": \"#FEF3C7\", # 系统气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_text\": \"#92400E\","
+                }
+              ]
+            },
+            {
+              "old_start": 163,
+              "old_count": 6,
+              "new_start": 163,
+              "new_count": 11,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "# 临时兼容性：为现有代码提供THEME变量"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "THEME = theme_manager.get_current_theme()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 气泡最大宽度（用户靠右/靠左名称对齐参考）"
+                },
+                {
+                  "type": "added",
+                  "text": "# 用户和 AI 气泡最大宽度（相同，参考标签名对齐）"
+                },
+                {
+                  "type": "added",
+                  "text": "USER_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": "AI_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# ==================== 高级动画系统 ===================="
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "class AnimationManager(QObject):"
+                }
+              ]
+            },
+            {
+              "old_start": 896,
+              "old_count": 7,
+              "new_start": 901,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            permission_mode=self.permission_mode,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            can_use_tool=self._can_use_tool,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            include_partial_messages=True,"
+                },
+                {
+                  "type": "removed",
+                  "text": "            thinking={\"type\": \"adaptive\", \"display\": \"summarized\"},  # 确保返回思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "            thinking={\"type\": \"enabled\", \"budget_tokens\": 4096, \"display\": \"summarized\"},  # 明确启用 thinking"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self.session_id:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            options.resume = self.session_id"
+                }
+              ]
+            },
+            {
+              "old_start": 973,
+              "old_count": 6,
+              "new_start": 978,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                delta_type = delta.get(\"type\", \"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if delta_type == \"text_delta\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(delta.get(\"text\", \"\"))"
+                },
+                {
+                  "type": "added",
+                  "text": "                elif delta_type == \"thinking_delta\":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = delta.get(\"thinking\", \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    print(f\"[SDK DEBUG] thinking_delta: {repr(thinking_text[:100])}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            elif event_type == \"content_block_stop\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                pass  # 思考/工具的完成信息在 AssistantMessage 中处理"
+                }
+              ]
+            },
+            {
+              "old_start": 982,
+              "old_count": 7,
+              "new_start": 991,
+              "new_count": 9,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                if isinstance(block, TextBlock):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(block.text)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                elif isinstance(block, ThinkingBlock):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    self.thinking_ready.emit(block.thinking, 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_started.emit()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = getattr(block, 'thinking', '') or ''"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        elif isinstance(msg, ResultMessage):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if msg.is_error:"
+                }
+              ]
+            },
+            {
+              "old_start": 1164,
+              "old_count": 8,
+              "new_start": 1175,
+              "new_count": 6,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble = QFrame()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble.setObjectName(\"bubble\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 不设置固定宽度，让内容自然撑开"
+                },
+                {
+                  "type": "removed",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout = QVBoxLayout(bubble)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.setContentsMargins(0, 0, 0, 0)"
+                }
+              ]
+            },
+            {
+              "old_start": 1183,
+              "old_count": 16,
+              "new_start": 1192,
+              "new_count": 20,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setWordWrapMode(QTextOption.WrapMode.WordWrap)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMinimumWidth(180)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMaximumWidth(550)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 去掉 QTextEdit 默认的内边距"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.document().setDocumentMargin(0)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 初始用纯文本显示（流式输出期间不渲染 Markdown）"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        _max_w = USER_BUBBLE_MAX_WIDTH if role==\"user\" else AI_BUBBLE_MAX_WIDTH"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setMaximumWidth(_max_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setStyleSheet(\"font-size: 13px; padding: 4px 10px 8px 10px; background-color: transparent;\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setTextInteractionFlags("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "added",
+                  "text": "        # Auto-height: set textWidth and initial text, then connect"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().setTextWidth(_max_w - 30)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().contentsChanged.connect(lambda: self._sync_content_height())"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.addWidget(content)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 样式 — 根据当前主题动态配色"
+                }
+              ]
+            },
+            {
+              "old_start": 1221,
+              "old_count": 6,
+              "new_start": 1234,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {THEME['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1251,
+              "old_count": 6,
+              "new_start": 1265,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        dots = \".\" * self._thinking_dots"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(f\"🤔 思考中{dots}\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _sync_content_height(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"同步内容高度：根据当前内容和宽度计算并设置精确高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl = self._content_label"
+                },
+                {
+                  "type": "added",
+                  "text": "            if cl is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            vw = cl.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if vw >= 80:"
+                },
+                {
+                  "type": "added",
+                  "text": "                cl.document().setTextWidth(vw)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 无论视口是否就绪，都要根据当前 textWidth 计算高度"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(cl.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = max(36, doc_h + 16)"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl.setFixedHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except (RuntimeError, AttributeError):"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def resizeEvent(self, event):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"窗口尺寸变化时重新同步高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        super().resizeEvent(event)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _start_processing_animation(self, base_text):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\"启动处理中动画（转圈）。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._processing_base_text = base_text"
+                }
+              ]
+            },
+            {
+              "old_start": 1290,
+              "old_count": 6,
+              "new_start": 1325,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_type_timer'):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._type_timer.stop()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                del self._type_timer"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 动画期间用纯文本"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(self._target_text[:self._displayed_chars])"
+                }
+              ]
+            },
+            {
+              "old_start": 1334,
+              "old_count": 6,
+              "new_start": 1373,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            else:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 新的更长文本，继续动画"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._target_text = text"
+                }
+              ]
+            },
+            {
+              "old_start": 1375,
+              "old_count": 6,
+              "new_start": 1418,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            self._bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {theme['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {theme['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1391,
+              "old_count": 6,
+              "new_start": 1435,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                html = MarkdownRenderer.to_html(self._raw_text, theme)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if html and hasattr(self, '_content_label') and self._content_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_prefix_label') and self._prefix_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._prefix_label.setStyleSheet("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    f\"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; \""
+                }
+              ]
+            },
+            {
+              "old_start": 2315,
+              "old_count": 10,
+              "new_start": 2363,
+              "new_count": 34,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        super().__init__(parent)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.setAutoFillBackground(True)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._diff_cards = []  # 跟踪所有 DiffCard，用于主题切换"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_text = \"\"  # 累积当前轮次的思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_ms = 0  # 累积思考用时"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._message_rows = []  # 跟踪所有 MessageRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._thinking_rows = []  # 跟踪所有 ThinkingRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._build()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _create_combo_view(self, theme):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"创建深色样式的 combobox 弹出视图。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtWidgets import QListView"
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtGui import QPalette, QColor"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        view = QListView()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette = view.palette()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Window, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Base, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Text, QColor(theme['text_primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Highlight, QColor(theme['primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.HighlightedText, QColor('white'))"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setPalette(palette)"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            background-color: {theme['bg_card']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border-radius: 6px;"
+                },
+                {
+                  "type": "added",
+                  "text": "            outline: none;"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        return view"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _build(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout = QVBoxLayout(self)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.setContentsMargins(8, 8, 8, 8)"
+                }
+              ]
+            },
+            {
+              "old_start": 2379,
+              "old_count": 11,
+              "new_start": 2451,
+              "new_count": 14,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setCurrentIndex(1)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setMinimumWidth(150)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # macOS 修复：设置弹出窗口的调色板"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.model_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.model_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo = QComboBox()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.addItems([\"普通模式\", \"Agent 模式 (多步骤任务)\"])"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.mode_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.mode_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        perm_label = QLabel(\"权限:\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2395,
+              "old_count": 6,
+              "new_start": 2470,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setCurrentIndex(0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setMinimumWidth(170)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.permission_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.permission_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addStretch()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.addLayout(top_bar)"
+                }
+              ]
+            },
+            {
+              "old_start": 2504,
+              "old_count": 12,
+              "new_start": 2580,
+              "new_count": 15,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                border-radius: 10px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                padding: 8px 12px; font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMinimumHeight(40)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMaximumHeight(120)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # 输入框自适应高度"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.input_box.document().documentLayout().documentSizeChanged.connect("
+                },
+                {
+                  "type": "added",
+                  "text": "            self._adjust_input_height"
+                },
+                {
+                  "type": "added",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        input_layout.addWidget(self.input_box)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.send_btn = QPushButton(\"发  送\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2601,
+              "old_count": 6,
+              "new_start": 2680,
+              "new_count": 21,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                QPushButton:pressed {{ opacity: 0.85; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _adjust_input_height(self, size):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"输入框自适应高度（max 200）。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            viewport_w = self.input_box.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if viewport_w <= 0:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.document().setTextWidth(viewport_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(self.input_box.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            padding = 20"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = min(200, max(40, doc_h + padding))"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMinimumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMaximumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass  # C++ object already deleted"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _on_btn_click(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self._is_building_response:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.stop_clicked.emit()"
+                }
+              ]
+            },
+            {
+              "old_start": 2672,
+              "old_count": 22,
+              "new_start": 2766,
+              "new_count": 49,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        for i in range(self.msg_layout.count() - 2, -1, -1):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            item = self.msg_layout.itemAt(i)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), ThinkingRow):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                return item.widget()"
+                },
+                {
+                  "type": "added",
+                  "text": "                if item.widget()._block._in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    return item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), MessageRow):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                break"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return None"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def add_thinking_block(self, text, duration_ms, in_progress=True):"
+                },
+                {
+                  "type": "removed",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。流式阶段累积文本，思考完成时才创建最终分段。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row = self._find_latest_thinking_row()"
+                },
+                {
+                  "type": "removed",
+                  "text": "        if row is None:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row = ThinkingRow(text, duration_ms)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        if in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 流式阶段：只累积，不创建新分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text += (text or \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms += max(0, int(duration_ms or 0))"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 创建或更新显示（实时更新 UI）"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(\"\", 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 替换为累积内容（始终只有 1 个分段）"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._entries = [{\"text\": self._thinking_acc_text.strip(), \"duration_ms\": self._thinking_acc_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._total_duration_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._refresh_content()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        else:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row.append_thinking(text, duration_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 思考完成：用累积文本创建最终分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_text = self._thinking_acc_text.strip()"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(final_text, final_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            else:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._entries = [{\"text\": final_text, \"duration_ms\": final_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._total_duration_ms = final_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._refresh_content()"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 重置累积"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text = \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row.set_in_progress(in_progress)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._scroll_to_bottom()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return row"
+                }
+              ]
+            },
+            {
+              "old_start": 2713,
+              "old_count": 7,
+              "new_start": 2834,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                widget = item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                # 检查是否是 assistant 的占位消息"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if widget.role == \"assistant\":"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    text = widget._content_label.text()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    text = widget._content_label.toPlainText()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    if \"思考中\" in text:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        self.msg_layout.removeWidget(widget)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        widget.deleteLater()"
+                }
+              ]
+            },
+            {
+              "old_start": 2829,
+              "old_count": 10,
+              "new_start": 2950,
+              "new_count": 13,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'model_combo') and self.model_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.model_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'mode_combo') and self.mode_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.mode_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'permission_combo') and self.permission_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.permission_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 快捷按钮"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        is_dark = theme['bg_primary'] in ('#0D1117', '#212121', '#1A1A1A', '#1E1E1E')"
+                }
+              ]
+            },
+            {
+              "old_start": 2938,
+              "old_count": 11,
+              "new_start": 3062,
+              "new_count": 12,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'input_box') and self.input_box is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.input_box.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit {{"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    border-radius: 12px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    padding: 12px 16px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border-radius: 10px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    padding: 8px 12px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    background-color: {theme['bg_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    background-color: {theme['bg_input']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    selection-background-color: {theme['primary']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit::placeholder {{"
+                }
+              ]
+            },
+            {
+              "old_start": 3935,
+              "old_count": 6,
+              "new_start": 4060,
+              "new_count": 8,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_thinking_segments = []"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_diff_data = None  # 清空上一轮的 diff 数据"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._has_stream_text = False"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_text = \"\"  # 重置思考累积器"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 获取当前对话的 session_id（用于续接历史对话）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        session_id = conv.get(\"session_id\") if conv else None"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "哇那你很厉害了"
+    },
+    {
+      "role": "assistant",
+      "content": "谢谢！😄 不过我最擅长的是帮你解决代码相关的问题。\n\n你现在有什么想做的项目或者需要帮忙的任务吗？比如：\n\n- 写一个新功能？\n- 修复某个 bug？\n- 理解一段代码？\n- 创建或编辑文件？\n- 其他什么？\n\n说说你想做什么，我来帮你！",
+      "thinking": "[第1段 | 用时 0毫秒]\n用户\n\n[第2段 | 用时 0毫秒]\n表达了惊讶和赞美，我应该友好地回应，同时保持谦虚，并引导用户告诉我\n\n[第3段 | 用时 0毫秒]\n他们具体需要什么帮助。",
+      "thinking_duration_ms": 0,
+      "thinking_segments": [
+        {
+          "text": "用户",
+          "duration_ms": 0
+        },
+        {
+          "text": "表达了惊讶和赞美，我应该友好地回应，同时保持谦虚，并引导用户告诉我",
+          "duration_ms": 0
+        },
+        {
+          "text": "他们具体需要什么帮助。",
+          "duration_ms": 0
+        }
+      ],
+      "diff_data": [
+        {
+          "file": "claude_agent_sdk/_internal/message_parser.py",
+          "additions": 1,
+          "deletions": 1,
+          "hunks": [
+            {
+              "old_start": 109,
+              "old_count": 7,
+              "new_start": 109,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                        case \"thinking\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            content_blocks.append("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                ThinkingBlock("
+                },
+                {
+                  "type": "removed",
+                  "text": "                                    thinking=block[\"thinking\"],"
+                },
+                {
+                  "type": "added",
+                  "text": "                                    thinking=block.get(\"thinking\", \"\"),"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                    signature=block[\"signature\"],"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                                )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                            )"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "data/conversations/f14a0ff2.json",
+          "additions": 0,
+          "deletions": 6,
+          "hunks": [
+            {
+              "old_start": 1,
+              "old_count": 6,
+              "new_start": 0,
+              "new_count": 0,
+              "lines": [
+                {
+                  "type": "removed",
+                  "text": "{"
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"id\": \"f14a0ff2\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"title\": \"新增对话\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"created_at\": \"2026-04-27T17:30:08.469097\","
+                },
+                {
+                  "type": "removed",
+                  "text": "  \"messages\": []"
+                },
+                {
+                  "type": "removed",
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "file": "main.py",
+          "additions": 152,
+          "deletions": 25,
+          "hunks": [
+            {
+              "old_start": 102,
+              "old_count": 7,
+              "new_start": 102,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble\": \"#EEF2FF\",   # 淡紫用户气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_bubble_gradient_end\": \"#C7D2FE\",  # 用户气泡渐变结束色（浅紫）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"user_text\": \"#4338CA\","
+                },
+                {
+                  "type": "removed",
+                  "text": "    \"ai_bubble\": \"#F9FAFB\",     # 极浅灰 AI 气泡"
+                },
+                {
+                  "type": "added",
+                  "text": "    \"ai_bubble\": \"#F3F4F6\",     # 浅灰 AI 气泡（与主背景区分）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"ai_text\": \"#111827\","
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_bubble\": \"#FEF3C7\", # 系统气泡"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    \"system_text\": \"#92400E\","
+                }
+              ]
+            },
+            {
+              "old_start": 163,
+              "old_count": 6,
+              "new_start": 163,
+              "new_count": 11,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "# 临时兼容性：为现有代码提供THEME变量"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "THEME = theme_manager.get_current_theme()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "# 气泡最大宽度（用户靠右/靠左名称对齐参考）"
+                },
+                {
+                  "type": "added",
+                  "text": "# 用户和 AI 气泡最大宽度（相同，参考标签名对齐）"
+                },
+                {
+                  "type": "added",
+                  "text": "USER_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": "AI_BUBBLE_MAX_WIDTH = 450"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "# ==================== 高级动画系统 ===================="
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "class AnimationManager(QObject):"
+                }
+              ]
+            },
+            {
+              "old_start": 896,
+              "old_count": 7,
+              "new_start": 901,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            permission_mode=self.permission_mode,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            can_use_tool=self._can_use_tool,"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            include_partial_messages=True,"
+                },
+                {
+                  "type": "removed",
+                  "text": "            thinking={\"type\": \"adaptive\", \"display\": \"summarized\"},  # 确保返回思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "            thinking={\"type\": \"enabled\", \"budget_tokens\": 4096, \"display\": \"summarized\"},  # 明确启用 thinking"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self.session_id:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            options.resume = self.session_id"
+                }
+              ]
+            },
+            {
+              "old_start": 973,
+              "old_count": 6,
+              "new_start": 978,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                delta_type = delta.get(\"type\", \"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if delta_type == \"text_delta\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(delta.get(\"text\", \"\"))"
+                },
+                {
+                  "type": "added",
+                  "text": "                elif delta_type == \"thinking_delta\":"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = delta.get(\"thinking\", \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    print(f\"[SDK DEBUG] thinking_delta: {repr(thinking_text[:100])}\")"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            elif event_type == \"content_block_stop\":"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                pass  # 思考/工具的完成信息在 AssistantMessage 中处理"
+                }
+              ]
+            },
+            {
+              "old_start": 982,
+              "old_count": 7,
+              "new_start": 991,
+              "new_count": 9,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                if isinstance(block, TextBlock):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self.chunk_ready.emit(block.text)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                elif isinstance(block, ThinkingBlock):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    self.thinking_ready.emit(block.thinking, 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_started.emit()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    thinking_text = getattr(block, 'thinking', '') or ''"
+                },
+                {
+                  "type": "added",
+                  "text": "                    self.thinking_ready.emit(thinking_text, 0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        elif isinstance(msg, ResultMessage):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if msg.is_error:"
+                }
+              ]
+            },
+            {
+              "old_start": 1164,
+              "old_count": 8,
+              "new_start": 1175,
+              "new_count": 6,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble = QFrame()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble.setObjectName(\"bubble\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 不设置固定宽度，让内容自然撑开"
+                },
+                {
+                  "type": "removed",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout = QVBoxLayout(bubble)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.setContentsMargins(0, 0, 0, 0)"
+                }
+              ]
+            },
+            {
+              "old_start": 1183,
+              "old_count": 16,
+              "new_start": 1192,
+              "new_count": 20,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        content.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setWordWrapMode(QTextOption.WrapMode.WordWrap)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMinimumWidth(180)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setMaximumWidth(550)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 去掉 QTextEdit 默认的内边距"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.document().setDocumentMargin(0)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        # 初始用纯文本显示（流式输出期间不渲染 Markdown）"
+                },
+                {
+                  "type": "removed",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        _max_w = USER_BUBBLE_MAX_WIDTH if role==\"user\" else AI_BUBBLE_MAX_WIDTH"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setMaximumWidth(_max_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setStyleSheet(\"font-size: 13px; padding: 4px 10px 8px 10px; background-color: transparent;\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        content.setTextInteractionFlags("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        )"
+                },
+                {
+                  "type": "added",
+                  "text": "        # Auto-height: set textWidth and initial text, then connect"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().setTextWidth(_max_w - 30)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "        content.document().contentsChanged.connect(lambda: self._sync_content_height())"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        bubble_layout.addWidget(content)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 样式 — 根据当前主题动态配色"
+                }
+              ]
+            },
+            {
+              "old_start": 1221,
+              "old_count": 6,
+              "new_start": 1234,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {THEME['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {THEME['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1251,
+              "old_count": 6,
+              "new_start": 1265,
+              "new_count": 27,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        dots = \".\" * self._thinking_dots"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(f\"🤔 思考中{dots}\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _sync_content_height(self):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"同步内容高度：根据当前内容和宽度计算并设置精确高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl = self._content_label"
+                },
+                {
+                  "type": "added",
+                  "text": "            if cl is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            vw = cl.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if vw >= 80:"
+                },
+                {
+                  "type": "added",
+                  "text": "                cl.document().setTextWidth(vw)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 无论视口是否就绪，都要根据当前 textWidth 计算高度"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(cl.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = max(36, doc_h + 16)"
+                },
+                {
+                  "type": "added",
+                  "text": "            cl.setFixedHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except (RuntimeError, AttributeError):"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def resizeEvent(self, event):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"窗口尺寸变化时重新同步高度。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        super().resizeEvent(event)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _start_processing_animation(self, base_text):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\"启动处理中动画（转圈）。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._processing_base_text = base_text"
+                }
+              ]
+            },
+            {
+              "old_start": 1290,
+              "old_count": 6,
+              "new_start": 1325,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_type_timer'):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._type_timer.stop()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                del self._type_timer"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 动画期间用纯文本"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._content_label.setPlainText(self._target_text[:self._displayed_chars])"
+                }
+              ]
+            },
+            {
+              "old_start": 1334,
+              "old_count": 6,
+              "new_start": 1373,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            else:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._content_label.setPlainText(text)"
+                },
+                {
+                  "type": "added",
+                  "text": "            try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "            except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            return"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 新的更长文本，继续动画"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._target_text = text"
+                }
+              ]
+            },
+            {
+              "old_start": 1375,
+              "old_count": 6,
+              "new_start": 1418,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            self._bubble.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    background-color: {theme['ai_bubble']}; border-radius: 12px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                #bubble QLabel, #bubble QTextEdit {{ color: {theme['ai_text']}; background: transparent; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                }
+              ]
+            },
+            {
+              "old_start": 1391,
+              "old_count": 6,
+              "new_start": 1435,
+              "new_count": 10,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                html = MarkdownRenderer.to_html(self._raw_text, theme)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if html and hasattr(self, '_content_label') and self._content_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    self._content_label.setHtml(html)"
+                },
+                {
+                  "type": "added",
+                  "text": "                    try:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        self._sync_content_height()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "                        pass"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if hasattr(self, '_prefix_label') and self._prefix_label is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                self._prefix_label.setStyleSheet("
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    f\"font-weight: bold; font-size: 11px; padding: 4px 10px 0 10px; \""
+                }
+              ]
+            },
+            {
+              "old_start": 2315,
+              "old_count": 10,
+              "new_start": 2363,
+              "new_count": 34,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        super().__init__(parent)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.setAutoFillBackground(True)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._diff_cards = []  # 跟踪所有 DiffCard，用于主题切换"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_text = \"\"  # 累积当前轮次的思考文本"
+                },
+                {
+                  "type": "added",
+                  "text": "        self._thinking_acc_ms = 0  # 累积思考用时"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._message_rows = []  # 跟踪所有 MessageRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._thinking_rows = []  # 跟踪所有 ThinkingRow"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._build()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _create_combo_view(self, theme):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"创建深色样式的 combobox 弹出视图。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtWidgets import QListView"
+                },
+                {
+                  "type": "added",
+                  "text": "        from PyQt6.QtGui import QPalette, QColor"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        view = QListView()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette = view.palette()"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Window, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Base, QColor(theme['bg_card']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Text, QColor(theme['text_primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.Highlight, QColor(theme['primary']))"
+                },
+                {
+                  "type": "added",
+                  "text": "        palette.setColor(QPalette.ColorRole.HighlightedText, QColor('white'))"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setPalette(palette)"
+                },
+                {
+                  "type": "added",
+                  "text": "        view.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            background-color: {theme['bg_card']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "added",
+                  "text": "            border-radius: 6px;"
+                },
+                {
+                  "type": "added",
+                  "text": "            outline: none;"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "        return view"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _build(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout = QVBoxLayout(self)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.setContentsMargins(8, 8, 8, 8)"
+                }
+              ]
+            },
+            {
+              "old_start": 2379,
+              "old_count": 11,
+              "new_start": 2451,
+              "new_count": 14,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setCurrentIndex(1)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setMinimumWidth(150)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # macOS 修复：设置弹出窗口的调色板"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.model_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.model_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo = QComboBox()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.addItems([\"普通模式\", \"Agent 模式 (多步骤任务)\"])"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.mode_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.mode_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        perm_label = QLabel(\"权限:\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2395,
+              "old_count": 6,
+              "new_start": 2470,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setCurrentIndex(0)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setMinimumWidth(170)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.permission_combo.setView(self._create_combo_view(THEME))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addWidget(self.permission_combo)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        top_bar.addStretch()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        layout.addLayout(top_bar)"
+                }
+              ]
+            },
+            {
+              "old_start": 2504,
+              "old_count": 12,
+              "new_start": 2580,
+              "new_count": 15,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit {{"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                border-radius: 10px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                padding: 8px 12px; font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                background-color: {THEME['bg_primary']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                background-color: {THEME['bg_input']}; color: {THEME['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                border: 1px solid {THEME['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            QTextEdit::placeholder {{ color: {THEME['text_tertiary']}; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        \"\"\")"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMinimumHeight(40)"
+                },
+                {
+                  "type": "removed",
+                  "text": "        self.input_box.setMaximumHeight(120)"
+                },
+                {
+                  "type": "added",
+                  "text": "        # 输入框自适应高度"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.input_box.document().documentLayout().documentSizeChanged.connect("
+                },
+                {
+                  "type": "added",
+                  "text": "            self._adjust_input_height"
+                },
+                {
+                  "type": "added",
+                  "text": "        )"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        input_layout.addWidget(self.input_box)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self.send_btn = QPushButton(\"发  送\")"
+                }
+              ]
+            },
+            {
+              "old_start": 2601,
+              "old_count": 6,
+              "new_start": 2680,
+              "new_count": 21,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                QPushButton:pressed {{ opacity: 0.85; }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            \"\"\")"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "    def _adjust_input_height(self, size):"
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"输入框自适应高度（max 200）。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        try:"
+                },
+                {
+                  "type": "added",
+                  "text": "            viewport_w = self.input_box.viewport().width()"
+                },
+                {
+                  "type": "added",
+                  "text": "            if viewport_w <= 0:"
+                },
+                {
+                  "type": "added",
+                  "text": "                return"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.document().setTextWidth(viewport_w)"
+                },
+                {
+                  "type": "added",
+                  "text": "            doc_h = int(self.input_box.document().size().height())"
+                },
+                {
+                  "type": "added",
+                  "text": "            padding = 20"
+                },
+                {
+                  "type": "added",
+                  "text": "            h = min(200, max(40, doc_h + padding))"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMinimumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.input_box.setMaximumHeight(h)"
+                },
+                {
+                  "type": "added",
+                  "text": "        except RuntimeError:"
+                },
+                {
+                  "type": "added",
+                  "text": "            pass  # C++ object already deleted"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def _on_btn_click(self):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if self._is_building_response:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.stop_clicked.emit()"
+                }
+              ]
+            },
+            {
+              "old_start": 2672,
+              "old_count": 22,
+              "new_start": 2766,
+              "new_count": 49,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        for i in range(self.msg_layout.count() - 2, -1, -1):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            item = self.msg_layout.itemAt(i)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), ThinkingRow):"
+                },
+                {
+                  "type": "removed",
+                  "text": "                return item.widget()"
+                },
+                {
+                  "type": "added",
+                  "text": "                if item.widget()._block._in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "                    return item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            if item and item.widget() and isinstance(item.widget(), MessageRow):"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                break"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return None"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "    def add_thinking_block(self, text, duration_ms, in_progress=True):"
+                },
+                {
+                  "type": "removed",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。\"\"\""
+                },
+                {
+                  "type": "added",
+                  "text": "        \"\"\"添加或更新当前轮次思考块。流式阶段累积文本，思考完成时才创建最终分段。\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row = self._find_latest_thinking_row()"
+                },
+                {
+                  "type": "removed",
+                  "text": "        if row is None:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row = ThinkingRow(text, duration_ms)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "removed",
+                  "text": "            self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "added",
+                  "text": "        if in_progress:"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 流式阶段：只累积，不创建新分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text += (text or \"\")"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms += max(0, int(duration_ms or 0))"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 创建或更新显示（实时更新 UI）"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(\"\", 0)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 替换为累积内容（始终只有 1 个分段）"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._entries = [{\"text\": self._thinking_acc_text.strip(), \"duration_ms\": self._thinking_acc_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._total_duration_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            row._block._refresh_content()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        else:"
+                },
+                {
+                  "type": "removed",
+                  "text": "            row.append_thinking(text, duration_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 思考完成：用累积文本创建最终分段"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_text = self._thinking_acc_text.strip()"
+                },
+                {
+                  "type": "added",
+                  "text": "            final_ms = self._thinking_acc_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "            if row is None:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row = ThinkingRow(final_text, final_ms)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._thinking_rows.append(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                spring_index = self.msg_layout.count() - 1"
+                },
+                {
+                  "type": "added",
+                  "text": "                self.msg_layout.insertWidget(spring_index, row)"
+                },
+                {
+                  "type": "added",
+                  "text": "                self._animate_widget_in(row)"
+                },
+                {
+                  "type": "added",
+                  "text": "            else:"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._entries = [{\"text\": final_text, \"duration_ms\": final_ms}]"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._total_duration_ms = final_ms"
+                },
+                {
+                  "type": "added",
+                  "text": "                row._block._refresh_content()"
+                },
+                {
+                  "type": "added",
+                  "text": "            # 重置累积"
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_text = \"\""
+                },
+                {
+                  "type": "added",
+                  "text": "            self._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "added",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        row.set_in_progress(in_progress)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._scroll_to_bottom()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        return row"
+                }
+              ]
+            },
+            {
+              "old_start": 2713,
+              "old_count": 7,
+              "new_start": 2834,
+              "new_count": 7,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "                widget = item.widget()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                # 检查是否是 assistant 的占位消息"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                if widget.role == \"assistant\":"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    text = widget._content_label.text()"
+                },
+                {
+                  "type": "added",
+                  "text": "                    text = widget._content_label.toPlainText()"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    if \"思考中\" in text:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        self.msg_layout.removeWidget(widget)"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                        widget.deleteLater()"
+                }
+              ]
+            },
+            {
+              "old_start": 2829,
+              "old_count": 10,
+              "new_start": 2950,
+              "new_count": 13,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'model_combo') and self.model_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.model_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.model_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'mode_combo') and self.mode_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.mode_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.mode_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'permission_combo') and self.permission_combo is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.permission_combo.setStyleSheet(combo_style)"
+                },
+                {
+                  "type": "added",
+                  "text": "            self.permission_combo.setView(self._create_combo_view(theme))"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 快捷按钮"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        is_dark = theme['bg_primary'] in ('#0D1117', '#212121', '#1A1A1A', '#1E1E1E')"
+                }
+              ]
+            },
+            {
+              "old_start": 2938,
+              "old_count": 11,
+              "new_start": 3062,
+              "new_count": 12,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        if hasattr(self, 'input_box') and self.input_box is not None:"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "            self.input_box.setStyleSheet(f\"\"\""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit {{"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    border-radius: 12px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    padding: 12px 16px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border-radius: 10px;"
+                },
+                {
+                  "type": "added",
+                  "text": "                    padding: 8px 12px;"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    font-size: 14px;"
+                },
+                {
+                  "type": "removed",
+                  "text": "                    background-color: {theme['bg_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    background-color: {theme['bg_input']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    color: {theme['text_primary']};"
+                },
+                {
+                  "type": "added",
+                  "text": "                    border: 1px solid {theme['border']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                    selection-background-color: {theme['primary']};"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                }}"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "                QTextEdit::placeholder {{"
+                }
+              ]
+            },
+            {
+              "old_start": 3935,
+              "old_count": 6,
+              "new_start": 4060,
+              "new_count": 8,
+              "lines": [
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_thinking_segments = []"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._last_diff_data = None  # 清空上一轮的 diff 数据"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        self._has_stream_text = False"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_text = \"\"  # 重置思考累积器"
+                },
+                {
+                  "type": "added",
+                  "text": "        self.center_panel._thinking_acc_ms = 0"
+                },
+                {
+                  "type": "unchanged",
+                  "text": ""
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        # 获取当前对话的 session_id（用于续接历史对话）"
+                },
+                {
+                  "type": "unchanged",
+                  "text": "        session_id = conv.get(\"session_id\") if conv else None"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "session_id": "2fb6e6b9-1c96-4581-9afd-2ffe1d370297"
+}
